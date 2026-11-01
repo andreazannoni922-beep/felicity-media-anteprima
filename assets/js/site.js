@@ -194,61 +194,106 @@
   addEventListener("pageshow", e => { if (e.persisted) { leaving = false; curtain.classList.remove("is-on"); gsap.set(curtain, { clipPath: "inset(0 0 100% 0)" }); closeMenu(); } });
 
   /* ---------------- the travelling logo ---------------- */
-  // It follows an anchor in each section (or parks in a corner), keeps its original tilt,
-  // and only ever changes size, place, colour and how much of the arc is drawn.
+  // It sits on an anchor in each section (or parks in a corner), keeps its original tilt,
+  // and only ever changes size, place, colour, opacity and how much of the arc is drawn.
+  // While a section stays the same it is locked to its anchor (no lag behind the scroll);
+  // when the anchor changes it either flies there (same ground colour, arc not going back)
+  // or fades out and reappears in its new place.
   const mascot = $("#mascot"), mf = faces.mascot;
-  const sections = $$("[data-gl]");
-  const M = { x: innerWidth * .74, y: innerHeight * .47, w: 0 };
-  let rest = null, mFill = 0, mEyes = 0, lastId = null;
+  const sections = $$("[data-gl]"), withLogo = $$("[data-with-logo]");
+  const M = { x: innerWidth * .74, y: innerHeight * .47, w: 0, o: 0, s: 1 };
+  const easeIO = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  let curKey, curBg = null, mFill = 0, mEyes = -1, tr = null;
   function activeSection() {
     const mid = innerHeight * .5;
     for (const s of sections) { if (s.hidden) continue; const r = s.getBoundingClientRect(); if (r.height && r.top <= mid && r.bottom >= mid) return s; }
     return null;
   }
-  function targetFor(sec) {
+  function anchorOf(sec) {
     const mode = sec ? sec.dataset.gl : "none";
-    if (mode.startsWith("anchor:")) {
-      const h = $(mode.slice(7), sec);
-      if (h) { const r = h.getBoundingClientRect(); if (r.width > 0) return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width }; }
-    }
-    if (mode === "park" && innerWidth >= 820) return { x: innerWidth - 84, y: innerHeight - 84, w: 300 };
+    if (mode.startsWith("anchor:")) { const h = $(mode.slice(7), sec); if (h && h.getBoundingClientRect().width > 0) return h; }
+    if (mode === "park" && innerWidth >= 820) return "park";
     return null;
   }
-  gsap.ticker.add((time, dtMs) => {
-    const dt = Math.min(dtMs / 1000, 1 / 20);
-    const sec = activeSection();
-    let t = targetFor(sec), snap = false;
-    // home hero: the camera goes into the black of the arc, the logo keeps its tilt
-    if (sec && sec.id === "hero") {
-      const d = G.dive;
-      if (d < .015 && t) rest = t;
-      if (d >= .015 && rest) {
-        const s = 1 + 15 * Math.pow(smooth(.04, 1, d), 3), c = smooth(0, .35, d);
-        const ox = lerp(rest.x - .15 * rest.w, innerWidth / 2, c), oy = lerp(rest.y + .02 * rest.w, innerHeight / 2, c);
-        const w = rest.w * s;
-        t = { x: ox + .15 * w, y: oy - .02 * w, w }; snap = true;
-      }
-    }
-    // leaving the dive: the logo does not shrink back across the screen, it starts again small in its next place
-    if (lastId === "hero" && sec && sec.id !== "hero" && G.dive > .9) {
-      if (t) { M.x = t.x; M.y = t.y; M.w = t.w; snap = true; } else M.w = 0;
-      mFill = .15;
-    }
-    lastId = sec ? sec.id : null;
-    const k = snap ? 1 : 1 - Math.pow(.0012, dt);
-    if (t) { M.x = lerp(M.x, t.x, k); M.y = lerp(M.y, t.y, k); M.w = lerp(M.w, t.w, k); }
-    else M.w = lerp(M.w, 0, 1 - Math.pow(.003, dt));
-    const w = Math.min(M.w, 3000), sc = M.w / Math.max(w, .001);
+  function rectOf(a) {
+    if (a === "park") return { x: innerWidth - 84, y: innerHeight - 84, w: 300 };
+    const r = a.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width };
+  }
+  // while it fades out it stays on the anchor it is leaving, so it never floats over the page
+  function follow(a) { if (a && (a === "park" || a.isConnected) && !(a.closest && a.closest("#hero"))) { const r = rectOf(a); if (r.w > 0) { M.x = r.x; M.y = r.y; M.w = r.w; } } }
+  function fillOf(sec) { const k = sec && sec.dataset.fill; return k ? clamp(G[k] ?? 1, 0, 1) : 1; }
+  function paint() {
+    const w = Math.min(M.w * M.s, 3000), sc = M.w * M.s / Math.max(w, .001);
     mascot.style.width = w.toFixed(1) + "px";
-    mascot.style.transform = `translate(${(M.x - M.w / 2).toFixed(1)}px,${(M.y - M.w / 2).toFixed(1)}px) scale(${sc.toFixed(4)})`;
-    mascot.style.visibility = M.w < 2 ? "hidden" : "visible";
-    mascot.style.color = sec && sec.dataset.bg === "ink" ? "var(--paper)" : "var(--ink)";
-    const key = sec && sec.dataset.fill;
-    const fill = key ? clamp(G[key] ?? 1, 0, 1) : 1;
-    const eyes = fill >= .985 ? 1 : 0;
-    mFill = lerp(mFill, fill, 1 - Math.pow(.004, dt));
+    mascot.style.transform = `translate(${(M.x - M.w * M.s / 2).toFixed(1)}px,${(M.y - M.w * M.s / 2).toFixed(1)}px) scale(${sc.toFixed(4)})`;
+    mascot.style.opacity = M.o.toFixed(3);
+    mascot.style.visibility = M.o < .01 || M.w < 2 ? "hidden" : "visible";
+  }
+  function setGround(bg) {
+    if (bg === curBg) return;
+    curBg = bg; mascot.style.color = bg === "ink" ? "var(--paper)" : "var(--ink)";
+  }
+  gsap.ticker.add((time, dtMs) => {
+    const dt = Math.min(dtMs / 1000, 1 / 20), now = performance.now() / 1000;
+    const sec = activeSection();
+    const anchor = anchorOf(sec), bg = sec ? sec.dataset.bg : "paper";
+    let t = anchor ? rectOf(anchor) : null;
+    const fill = fillOf(sec);
+    // home hero: the camera goes into the black of the arc, the logo keeps its tilt
+    const diving = !!(sec && sec.id === "hero" && t && G.dive >= .015);
+    if (diving) {
+      const d = G.dive, s = 1 + 15 * Math.pow(smooth(.04, 1, d), 3), c = smooth(0, .35, d);
+      const ox = lerp(t.x - .15 * t.w, innerWidth / 2, c), oy = lerp(t.y + .02 * t.w, innerHeight / 2, c);
+      const w = t.w * s;
+      t = { x: ox + .15 * w, y: oy - .02 * w, w };
+    }
+    if (curKey === undefined) { curKey = anchor; if (t) Object.assign(M, t); setGround(bg); }
+    // a new anchor: decide how to get there
+    if (anchor !== curKey) {
+      const wasOn = curKey && M.o > .05;
+      const deep = G.dive > .5 && (sec && sec.id === "hero" || (tr && tr.fromHero));
+      const fromHero = !!(curKey && curKey.closest && curKey.closest("#hero") && G.dive > .5);
+      const prev = curKey;
+      if (!anchor) tr = { kind: "out", t0: now, o0: M.o, prev };
+      else if (fromHero || deep) tr = { kind: "in", t0: now, fromHero };                         // out of the black: appear in place
+      else if (wasOn && bg === curBg && fill >= mFill - .08 && !(sec && sec.dataset.move === "fade")) tr = { kind: "fly", t0: now, from: { x: M.x, y: M.y, w: M.w }, o0: M.o };
+      else tr = { kind: wasOn ? "swap" : "in", t0: now, o0: M.o, prev };
+      curKey = anchor;
+    }
+    if (tr) {
+      const e = now - tr.t0;
+      if (tr.kind === "fly") {
+        const p = easeIO(clamp(e / .55, 0, 1));
+        M.x = lerp(tr.from.x, t.x, p); M.y = lerp(tr.from.y, t.y, p); M.w = lerp(tr.from.w, t.w, p);
+        M.o = lerp(tr.o0, 1, p); M.s = 1; setGround(bg);
+        if (p >= 1) tr = null;
+      } else if (tr.kind === "out") {
+        follow(tr.prev);
+        M.o = tr.o0 * (1 - smooth(0, .25, e)); M.s = 1 - .1 * smooth(0, .25, e);
+        if (e >= .25) tr = null;
+      } else {
+        // swap: fade out where it is, then appear at the new anchor; in: just appear
+        const outT = tr.kind === "swap" ? .2 : 0;
+        if (e < outT) { follow(tr.prev); M.o = tr.o0 * (1 - e / outT); }
+        else {
+          if (!tr.jumped) { tr.jumped = true; setGround(bg); mFill = fill; mf.fill(fill); }
+          const p = smooth(0, .45, e - outT);
+          if (t) { M.x = t.x; M.y = t.y; M.w = t.w; }
+          M.o = p; M.s = .9 + .1 * easeIO(p);
+          if (p >= 1) tr = null;
+        }
+      }
+    } else if (t) { M.x = t.x; M.y = t.y; M.w = t.w; M.o = 1; M.s = 1; setGround(bg); }
+    else { M.o = 0; }
+    paint();
+    // things that live inside the logo (the clients) are only there when the logo is
+    const settled = !(tr && tr.kind === "swap" && !tr.jumped);
+    withLogo.forEach(el => { const on = settled && curKey && curKey.closest && el.closest("section") === curKey.closest("section"); el.style.opacity = on ? M.o.toFixed(3) : "0"; });
+    // how much of the arc is drawn: it fills smoothly, it never visibly empties (that happens while hidden)
+    if (!tr || tr.kind !== "swap" || tr.jumped) mFill = lerp(mFill, fill, 1 - Math.pow(.004, dt));
     mf.fill(Math.abs(mFill - fill) < .002 ? fill : mFill);
     mascot.classList.toggle("is-filling", fill < .999 || mFill < .995);
+    const eyes = fill >= .985 ? 1 : 0;
     if (eyes !== mEyes) { mEyes = eyes; mf.eyesOn(eyes); }
   });
 
@@ -290,7 +335,7 @@
       if (p.closest(".nomeA")) return;
       const words = $$(".w", p), last = !!p.closest(".ftr");   // the last sentence must be whole before the page ends
       ScrollTrigger.create({
-        trigger: p, start: last ? "top 92%" : "top 85%", end: last ? "top 40%" : "bottom 55%", scrub: true,
+        trigger: p, start: last ? "top 92%" : "top 88%", end: last ? "top 40%" : "top 42%", scrub: true,
         onUpdate: s => { const n = s.progress * words.length * 1.1; words.forEach((w, i) => w.classList.toggle("on", i < n)); }
       });
     });
@@ -357,7 +402,7 @@
         gsap.from($(".svc__word", sv), { yPercent: 40, autoAlpha: 0, duration: 1.1, ease: "expo.out", scrollTrigger: { trigger: sv, start: "top 80%" } });
         const lis = $$(".svc__list li", sv);
         ScrollTrigger.create({
-          trigger: $(".svc__list", sv), start: "top 80%", end: "bottom 50%", scrub: true,
+          trigger: $(".svc__list", sv), start: "top 85%", end: "top 40%", scrub: true,
           onUpdate: s => lis.forEach((li, j) => li.classList.toggle("on", s.progress * lis.length * 1.15 > j))
         });
       });
@@ -394,7 +439,7 @@
       gsap.to(o, { v: to, duration: 1.6, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 88%" }, onUpdate: () => { el.textContent = Math.round(o.v); } });
     });
     if ($(".founder")) gsap.from(".founder__who > *", { y: 30, autoAlpha: 0, duration: 1, ease: "expo.out", stagger: .08, scrollTrigger: { trigger: ".founder", start: "top 75%" } });
-    if ($(".crew")) gsap.from(".crew__name", { yPercent: 60, autoAlpha: 0, duration: 1, ease: "expo.out", stagger: .06, scrollTrigger: { trigger: ".crew__list", start: "top 80%" } });
+    if ($(".crew")) gsap.from(".crew__name", { x: -24, autoAlpha: 0, duration: 1, ease: "expo.out", stagger: .06, scrollTrigger: { trigger: ".crew__list", start: "top 80%" } });
 
     /* HOME TEAM, CONTATTI, NEXT, CTA */
     if ($(".team")) {
@@ -432,7 +477,7 @@
         const p = s.progress * n;
         chs.forEach((c, i) => {
           const local = p - i;                       // 0..1 while this chapter is on screen
-          const op = (i === 0 ? 1 : smooth(0, .1, local)) * (i === n - 1 ? 1 : 1 - smooth(.9, 1, local));
+          const op = (i === 0 ? 1 : smooth(-.05, .08, local)) * (i === n - 1 ? 1 : 1 - smooth(.92, 1.05, local));
           c.style.opacity = op.toFixed(3);
           c.style.visibility = op > .01 ? "visible" : "hidden";
           c.style.filter = `blur(${((1 - op) * 8).toFixed(2)}px)`;
@@ -566,6 +611,8 @@
     });
   }
 
+  // images and late fonts can change the page height: measure again once everything is in
+  addEventListener("load", () => ScrollTrigger.refresh());
   let rt, lastW = innerWidth;
   addEventListener("resize", () => {
     if (touch && innerWidth === lastW) return;   // only the browser bars moved

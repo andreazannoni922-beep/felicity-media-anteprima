@@ -64,7 +64,7 @@ html:not(.js) .loader{display:none}
 /* ---------- the logo (one SVG, original tilt, never rotated) ---------- */
 .face{display:block;overflow:visible}
 .face__eye{transition:opacity .45s var(--ease)}
-.mascot{position:fixed;left:0;top:0;z-index:1;width:10px;pointer-events:none;transform-origin:0 0;will-change:transform;color:var(--ink);transition:color .5s var(--ease)}
+.mascot{position:fixed;left:0;top:0;z-index:1;width:10px;pointer-events:none;transform-origin:0 0;will-change:transform,opacity;color:var(--ink)}
 .mascot .face{width:100%;height:auto}
 .mascot .face__arc,.mascot .face__eye{fill:currentColor}
 /* the whole logo stays faintly visible while its arc fills */
