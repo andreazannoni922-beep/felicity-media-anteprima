@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contatti · Felicity Media</title>
+<meta name="description" content="Scrivi a Felicity Media: raccontaci la tua situazione, anche brevemente. Ti rispondiamo entro 24 ore.">
+<meta name="theme-color" content="#0b0b0b">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:title" content="Contatti · Felicity Media">
+<meta property="og:description" content="Scrivi a Felicity Media: raccontaci la tua situazione, anche brevemente. Ti rispondiamo entro 24 ore.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="it_IT">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='280 280 440 440'%3E%3Cpath d='M497 297 A203 203 0 1 0 699.8 536 L595.4 536 A102 102 0 1 1 497 398 Z'/%3E%3Crect x='549' y='331' width='65' height='65'/%3E%3Crect x='617' y='423' width='65' height='65'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300;400&family=Funnel+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+<script>document.documentElement.classList.add("js");try{if(sessionStorage.getItem("fm-seen"))document.documentElement.classList.add("seen")}catch(e){}</script>
+</head>
+<body data-page="contatti">
+
+<!-- the logo pictogram, measured from Logo_FelicityMedia_RGB.svg (original tilt) -->
+<template id="tpl-face">
+  <svg class="face" viewBox="0 0 1000 1000" aria-hidden="true" focusable="false">
+    <defs><mask id="MASK" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1000"><path class="face__draw" d="M500,347.5 a152.5,152.5 0 1,0 0.01,0" pathLength="1" fill="none" stroke="#fff" stroke-width="150" stroke-dasharray="1 1"/></mask></defs>
+    <path class="face__arc" d="M497 297 A203 203 0 1 0 699.8 536 L595.4 536 A102 102 0 1 1 497 398 Z" mask="url(#MASK)"/>
+    <rect class="face__eye" x="549" y="331" width="65" height="65"/>
+    <rect class="face__eye" x="617" y="423" width="65" height="65"/>
+  </svg>
+</template>
+
+<div class="loader" id="loader" aria-hidden="true">
+  <div class="loader__in">
+    <div data-face="loader"></div>
+    <div class="loader__word" id="loaderWord">Felicity Media</div>
+  </div>
+</div>
+<div class="curtain" id="curtain" aria-hidden="true"><div class="curtain__face" data-face="curtain"></div></div>
+
+<div class="mascot" id="mascot" data-face="mascot" aria-hidden="true"></div>
+<div class="cursor" id="cursor" aria-hidden="true"></div>
+
+<a class="skip" href="#main">Vai al contenuto</a>
+<header class="hdr">
+  <a class="hdr__logo" href="index.html" aria-label="Felicity Media, home"><img src="assets/logotipo.png" alt="Felicity Media" width="835" height="89"></a>
+  <div class="hdr__right">
+    <a class="hdr__link" href="contatti.html">Scrivici</a>
+    <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="menu"><span class="menu-btn__px"><i></i><i></i></span><span id="menuLabel">Menu</span></button>
+  </div>
+</header>
+
+<nav class="menu" id="menu" aria-label="Menu principale">
+  <ul class="menu__list">
+    <li class="menu__item"><a href="index.html" data-nav="home"><span class="t"><span>Home</span></span></a></li>
+    <li class="menu__item"><a href="servizi.html" data-nav="servizi"><span class="t"><span>Servizi</span></span></a></li>
+    <li class="menu__item"><a href="metodo.html" data-nav="metodo"><span class="t"><span>Metodo</span></span></a></li>
+    <li class="menu__item"><a href="chi-siamo.html" data-nav="chi-siamo"><span class="t"><span>Chi siamo</span></span></a></li>
+    <li class="menu__item"><a href="contatti.html" data-nav="contatti"><span class="t"><span>Contatti</span></span></a></li>
+  </ul>
+  <div class="menu__side">
+    <div class="menu__face" data-face="menu"></div>
+    <p class="menu__info tag">Studio di comunicazione<br>Modena</p>
+  </div>
+</nav>
+
+<main id="main">
+<!-- CONTACT: the logo fills while you write -->
+  <section class="contatti contatti--page" id="contatti" data-gl="anchor:.contatti__face" data-fill="form" data-bg="ink">
+    <div class="contatti__grid">
+      <div>
+        <h1 class="contatti__title"><span class="ln"><span>Scrivici</span></span></h1>
+        <div class="contatti__face" data-anchor></div>
+      </div>
+      <div>
+        <p class="contatti__lead">Raccontaci la tua situazione, anche brevemente. Ti rispondiamo entro 24&nbsp;ore.</p>
+        <form class="form" id="form" novalidate>
+          <div class="field"><label for="f-nome">Nome</label><input id="f-nome" name="nome" autocomplete="name" required><span class="field__err" aria-live="polite"></span></div>
+          <div class="field"><label for="f-email">Email</label><input id="f-email" name="email" type="email" autocomplete="email" required><span class="field__err" aria-live="polite"></span></div>
+          <div class="field field--full"><label for="f-tel">Telefono (facoltativo)</label><input id="f-tel" name="telefono" type="tel" autocomplete="tel"></div>
+          <div class="field field--full"><label for="f-msg">Messaggio</label><textarea id="f-msg" name="messaggio" required></textarea><span class="field__err" aria-live="polite"></span></div>
+          <label class="check"><input type="checkbox" id="f-privacy" required><span>Ho letto la <a href="privacy.html">Privacy Policy</a> e acconsento al trattamento dei dati per essere ricontattato.</span></label>
+          <div class="form__foot"><button class="btn btn--light" type="submit"><span class="btn__px"></span>Invia il messaggio</button><span class="form__msg" id="formMsg" aria-live="polite"></span></div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIRECT LINES -->
+  <section class="info" id="recapiti" data-gl="none" data-bg="paper">
+    <ul class="info__list">
+      <li class="info__row"><span class="info__k">Email</span><span class="info__v">[email da inserire]</span></li>
+      <li class="info__row"><span class="info__k">Telefono</span><span class="info__v">[telefono da inserire]</span></li>
+      <li class="info__row"><span class="info__k">Dove</span><span class="info__v">Modena</span></li>
+      <li class="info__row"><span class="info__k">Primo incontro</span><span class="info__v">Gratuito</span></li>
+    </ul>
+  </section>
+</main>
+
+<footer class="ftr" id="footer" data-gl="anchor:.ftr__face" data-fill="foot" data-bg="ink">
+  <div class="ftr__end">
+    <p class="ftr__sleep blur">Perché la comunicazione di chi lavora con&nbsp;noi sia felice.</p>
+    <button class="ftr__face" type="button" id="toTop" aria-label="Torna all'inizio" data-anchor></button>
+  </div>
+  <div class="ftr__top">
+    <a class="ftr__logo" href="index.html" aria-label="Felicity Media, home"><img src="assets/logotipo.png" alt="Felicity Media" width="835" height="89"></a>
+    <nav class="ftr__nav" aria-label="Piè di pagina"><a href="servizi.html">Servizi</a><a href="metodo.html">Metodo</a><a href="chi-siamo.html">Chi siamo</a><a href="contatti.html">Contatti</a></nav>
+  </div>
+  <div class="ftr__legal">
+    <span>Felicity Media è un marchio di Alessio Molinari Bucarelli · P.IVA 04032230261 · Modena</span>
+    <span><a href="privacy.html">Privacy Policy</a> · <a href="cookie.html">Cookie Policy</a></span>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
+<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+<script src="assets/js/site.js"></script>
+</body>
+</html>
