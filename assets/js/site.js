@@ -696,7 +696,7 @@
   function intro(tl, at) {
     tl.to(G, { intro: 1, duration: reduce ? 0 : 1.3, ease: "power3.inOut" }, at);
     const lines = $$(".hero__title .ln > span, .phero__title .ln > span, .contatti--page .contatti__title .ln > span");
-    if (lines.length) tl.from(lines, { yPercent: 105, duration: 1.2, stagger: .08, ease: "expo.out" }, at);
+    if (lines.length) tl.from(lines, { yPercent: 125, duration: 1.2, stagger: .08, ease: "expo.out" }, at);   // starts below the deeper line mask
     const soft = $$(".hero__copy > *, .phero__sub, .phero__index, .contatti--page .contatti__lead, .legal > *");
     if (soft.length) tl.from(soft, { y: 24, autoAlpha: 0, duration: 1, stagger: .08, ease: "expo.out" }, `${at}+=.2`);
     tl.from(".hdr", { autoAlpha: 0, duration: .8 }, at);

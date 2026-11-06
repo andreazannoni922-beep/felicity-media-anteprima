@@ -147,7 +147,7 @@ html:not(.js) .mascot{display:none}
 .hero__copy{position:absolute;left:var(--gutter);top:clamp(96px,20vh,190px);max-width:31ch;z-index:3}
 .hero__sub{margin:0 0 26px;font-size:clamp(17px,1.3vw,21px);line-height:1.5}
 .hero__title{position:absolute;left:var(--gutter);right:var(--gutter);bottom:clamp(28px,6vh,72px);margin:0;font-family:var(--font-display);font-weight:300;font-size:clamp(46px,7vw,140px);line-height:.96;letter-spacing:-.035em;z-index:3}
-.hero__title .ln{display:block;overflow:hidden;padding-bottom:.06em;white-space:nowrap}
+.hero__title .ln{display:block;overflow:hidden;padding-bottom:.2em;margin-bottom:-.14em;white-space:nowrap}
 .hero__title .ln>span{display:block}
 .hero__corner{position:absolute;right:var(--gutter);bottom:clamp(28px,6vh,72px);text-align:right;z-index:3}
 .hero__ink{position:absolute;inset:0;background:var(--ink);opacity:0;z-index:0;pointer-events:none}
