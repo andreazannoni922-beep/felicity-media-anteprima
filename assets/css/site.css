@@ -71,7 +71,7 @@ html:not(.js) .loader{display:none}
 .mascot .face--ghost{position:absolute;inset:0;opacity:0;transition:opacity .5s var(--ease)}
 .mascot.is-filling .face--ghost{opacity:.16}
 html:not(.js) .mascot{display:none}
-[data-anchor]{pointer-events:none}
+[data-anchor]{pointer-events:none;position:relative}
 /* sticky stages are their own layer: keep their words above the travelling logo (the clients stage stays below, so logos sit inside the ring) */
 .hero__stage,.nomeA__stage,.nomeB__stage,.nomeC__head,.metodo__stage{z-index:2}
 
@@ -577,3 +577,44 @@ body:has(.next) .ftr__top{border-top:0}
 @keyframes mq{to{transform:translateX(-50%)}}
 @media (max-width:820px){.marquee{padding:40px 0}.marquee__row{animation-duration:55s}}
 @media (prefers-reduced-motion:reduce){.marquee__row{animation:none}}
+
+/* clients section parked (src/parcheggio/clienti-home.html): the team follows the method directly */
+.metodo + .team{border-radius:var(--radius) var(--radius) 0 0;margin-top:calc(var(--radius)*-1);border-top:0;z-index:2}
+
+/* contact lines are real links now */
+a.info__v{color:inherit;text-decoration:none;background:linear-gradient(currentColor,currentColor) 0 100%/0 1px no-repeat;transition:background-size .5s var(--ease)}
+a.info__v:hover,a.info__v:focus-visible{background-size:100% 1px}
+.ftr__legal a{white-space:nowrap}
+
+/* ---------- the logo at rest lives inside its anchor ---------- */
+.mascot.is-docked{position:absolute;left:0;top:0;width:100%;z-index:0;transform-origin:50% 50%;will-change:auto}
+html.no-scroll{overflow:hidden}
+.menu{overscroll-behavior:contain;touch-action:none}
+
+/* ---------- phones: nothing that repaints the whole page at every frame ---------- */
+@media (hover:none),(max-width:820px){
+  .blur .w{filter:none;transition:opacity .25s linear}
+  .svc__list li{filter:none}
+  .hdr{mix-blend-mode:normal;color:var(--ink)}
+  .hdr .hdr__logo img{filter:none}
+  .hdr[data-ground="ink"]{color:var(--paper)}
+  .hdr[data-ground="ink"] .hdr__logo img{filter:invert(1)}
+  .menu-open .hdr{color:var(--paper)}
+  .menu-open .hdr .hdr__logo img{filter:invert(1)}
+}
+
+/* the back-to-top logo is an anchor that must be pressed */
+#toTop{pointer-events:auto}
+#toTop .mascot{pointer-events:none}
+/* header: ground and text change together, at once; only sliding is animated */
+.hdr{transition:transform .6s var(--ease)}
+.no-anim .menu{transition:none!important}
+/* home method on desktop: words fade at the edge instead of being cut */
+@media (min-width:821px){
+  .metodo__view{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 7vw,#000 100%);mask-image:linear-gradient(90deg,transparent 0,#000 7vw,#000 100%)}
+}
+@media (hover:none),(max-width:820px){
+  .menu-closing .hdr{color:var(--paper)}
+  .menu-closing .hdr .hdr__logo img{filter:invert(1)}
+}
+#team{scroll-margin-top:70px}

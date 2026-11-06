@@ -8,6 +8,7 @@
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const touch = matchMedia("(hover: none)").matches;
   const mobile = () => innerWidth <= 820;
+  const light = touch || innerWidth <= 820;   // no blur filters here: they are what makes a phone stutter
   const root = document.documentElement;
   const page = document.body.dataset.page;
   window.__fm = window.__fm || {};
@@ -41,6 +42,7 @@
   $$("[data-face]").forEach(host => {
     const node = tpl.content.firstElementChild.cloneNode(true);
     const id = "fm" + (faceN++);
+    if (host.dataset.face === "loader" || host.dataset.face === "mascot") $$(".face__eye", node).forEach(e => e.style.opacity = 0);   // never flash before the arc
     node.querySelector("mask").id = id;
     node.querySelector(".face__arc").setAttribute("mask", `url(#${id})`);
     host.appendChild(node);
@@ -52,7 +54,14 @@
     }
     faces[host.dataset.face] = {
       svg: node, draw: node.querySelector(".face__draw"), eyes: $$(".face__eye", node),
-      fill(p) { this.draw.setAttribute("stroke-dasharray", `${(clamp(p, 0, 1) * .75 + (p >= 1 ? .25 : 0)).toFixed(4)} 1`); },
+      fill(p) {
+        const v = `${(clamp(p, 0, 1) * .75 + (p >= 1 ? .25 : 0)).toFixed(4)} 1`;
+        if (v === this.v) return;
+        this.v = v; this.draw.setAttribute("stroke-dasharray", v);
+        // a full arc needs no mask: masks are slow to paint on phones
+        const full = p >= 1, arc = this.svg.querySelector(".face__arc");
+        if (full !== this.full) { this.full = full; if (full) arc.removeAttribute("mask"); else arc.setAttribute("mask", `url(#${id})`); }
+      },
       eyesOn(o) { this.eyes.forEach(e => e.style.opacity = o); }
     };
   });
@@ -154,13 +163,13 @@
 
   gsap.registerPlugin(ScrollTrigger);
   ScrollTrigger.config({ ignoreMobileResize: true });
-  const lenis = window.Lenis && !reduce ? new Lenis({ lerp: .1, smoothWheel: true }) : null;
+  const lenis = window.Lenis && !reduce && !touch ? new Lenis({ lerp: .1, smoothWheel: true }) : null;   // phones keep their native scroll
   window.__fm.lenis = lenis;
   if (lenis) { lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(t => lenis.raf(t * 1000)); gsap.ticker.lagSmoothing(0); }
   const scrollTo = (target, opts = {}) => {
     if (lenis) lenis.scrollTo(target, { duration: 1.6, easing: t => 1 - Math.pow(1 - t, 4), ...opts });
-    else if (typeof target === "number") window.scrollTo({ top: target, behavior: reduce ? "auto" : "smooth" });
-    else target.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
+    else if (typeof target === "number") window.scrollTo({ top: target, behavior: reduce || opts.immediate ? "auto" : "smooth" });
+    else target.scrollIntoView({ behavior: reduce || opts.immediate ? "auto" : "smooth" });
   };
 
   /* ---------------- links: same page glides, another page goes behind the curtain ---------------- */
@@ -191,19 +200,28 @@
       .fromTo(curtain, { clipPath: "inset(100% 0 0 0)" }, { clipPath: "inset(0% 0 0 0)", duration: .7, ease: "expo.inOut" })
       .to({ p: 0 }, { p: 1, duration: .45, ease: "power2.inOut", onUpdate() { cf.fill(this.targets()[0].p); } }, "-=.3");
   }
-  addEventListener("pageshow", e => { if (e.persisted) { leaving = false; curtain.classList.remove("is-on"); gsap.set(curtain, { clipPath: "inset(0 0 100% 0)" }); closeMenu(); } });
+  addEventListener("pageshow", e => {
+    if (!e.persisted) return;
+    // back from the browser's memory: the page is simply there, no curtain and no menu closing
+    root.classList.add("no-anim");
+    leaving = false; gsap.killTweensOf(curtain); curtain.classList.remove("is-on"); gsap.set(curtain, { clipPath: "inset(0 0 100% 0)" });
+    closeMenu();
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("no-anim")));
+  });
 
   /* ---------------- the travelling logo ---------------- */
   // It sits on an anchor in each section (or parks in a corner), keeps its original tilt,
   // and only ever changes size, place, colour, opacity and how much of the arc is drawn.
-  // While a section stays the same it is locked to its anchor (no lag behind the scroll);
-  // when the anchor changes it either flies there (same ground colour, arc not going back)
-  // or fades out and reappears in its new place.
-  const mascot = $("#mascot"), mf = faces.mascot;
+  // Once it has arrived it is moved INSIDE its anchor, so it scrolls with the page natively:
+  // on a phone a fixed element chased from JS always trembles behind the finger.
+  // It only goes back to a fixed layer to fly between two anchors, and in the home hero.
+  const mascot = $("#mascot"), mf = faces.mascot, mascotNext = mascot.nextSibling;
   const sections = $$("[data-gl]"), withLogo = $$("[data-with-logo]");
   const M = { x: innerWidth * .74, y: innerHeight * .47, w: 0, o: 0, s: 1 };
   const easeIO = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  let curKey, curBg = null, mFill = 0, mEyes = -1, tr = null;
+  let curKey, curBg = null, mFill = 0, mEyes = -1, tr = null, docked = null, vel = 0, velY = scrollY, keep = null, resizing = false;
+  const painted = {};
+  const put = (prop, v) => { if (painted[prop] !== v) { painted[prop] = v; mascot.style[prop] = v; } };
   function activeSection() {
     const mid = innerHeight * .5;
     for (const s of sections) { if (s.hidden) continue; const r = s.getBoundingClientRect(); if (r.height && r.top <= mid && r.bottom >= mid) return s; }
@@ -219,15 +237,31 @@
     if (a === "park") return { x: innerWidth - 84, y: innerHeight - 84, w: 300 };
     const r = a.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width };
   }
-  // while it fades out it stays on the anchor it is leaving, so it never floats over the page
-  function follow(a) { if (a && (a === "park" || a.isConnected) && !(a.closest && a.closest("#hero"))) { const r = rectOf(a); if (r.w > 0) { M.x = r.x; M.y = r.y; M.w = r.w; } } }
+  const canDock = a => a && a !== "park" && !a.closest("#hero");
+  function dock(a) {
+    if (docked === a) return;
+    a.appendChild(mascot); mascot.classList.add("is-docked"); docked = a;
+    put("width", ""); put("transform", "");
+  }
+  function undock() {
+    if (!docked) return;
+    const r = mascot.getBoundingClientRect();
+    M.x = r.left + r.width / 2; M.y = r.top + r.height / 2; M.w = r.width;
+    document.body.insertBefore(mascot, mascotNext); mascot.classList.remove("is-docked"); docked = null;
+  }
+  // while it fades out away from a fixed place it stays on the anchor it is leaving
+  function follow(a) { if (!docked && a && (a === "park" || a.isConnected) && !(a.closest && a.closest("#hero"))) { const r = rectOf(a); if (r.w > 0) { M.x = r.x; M.y = r.y; M.w = r.w; } } }
   function fillOf(sec) { const k = sec && sec.dataset.fill; return k ? clamp(G[k] ?? 1, 0, 1) : 1; }
+  const widthCap = touch ? 800 : 3000;   // past this it grows by scale only: no repaint of a huge SVG at every frame
   function paint() {
-    const w = Math.min(M.w * M.s, 3000), sc = M.w * M.s / Math.max(w, .001);
-    mascot.style.width = w.toFixed(1) + "px";
-    mascot.style.transform = `translate(${(M.x - M.w * M.s / 2).toFixed(1)}px,${(M.y - M.w * M.s / 2).toFixed(1)}px) scale(${sc.toFixed(4)})`;
-    mascot.style.opacity = M.o.toFixed(3);
-    mascot.style.visibility = M.o < .01 || M.w < 2 ? "hidden" : "visible";
+    if (docked) put("transform", M.s < .999 ? `scale(${M.s.toFixed(3)})` : "");
+    else {
+      const full = M.w * M.s, w = Math.min(full, widthCap), sc = full / Math.max(w, .001);
+      put("width", w.toFixed(1) + "px");
+      put("transform", `translate(${(M.x - full / 2).toFixed(1)}px,${(M.y - full / 2).toFixed(1)}px) scale(${sc.toFixed(4)})`);
+    }
+    put("opacity", M.o.toFixed(3));
+    put("visibility", M.o < .01 || (!docked && M.w < 2) ? "hidden" : "visible");
   }
   function setGround(bg) {
     if (bg === curBg) return;
@@ -236,12 +270,13 @@
   gsap.ticker.add((time, dtMs) => {
     const dt = Math.min(dtMs / 1000, 1 / 20), now = performance.now() / 1000;
     const sec = activeSection();
+    vel = lerp(vel, Math.abs(scrollY - velY) / Math.max(dt, .001), .35); velY = scrollY;
+    if (sec && !resizing) { const r = sec.getBoundingClientRect(); keep = { s: sec, rel: (innerHeight * .5 - r.top) / r.height }; }
     const anchor = anchorOf(sec), bg = sec ? sec.dataset.bg : "paper";
-    let t = anchor ? rectOf(anchor) : null;
+    let t = anchor && docked !== anchor ? rectOf(anchor) : null;
     const fill = fillOf(sec);
     // home hero: the camera goes into the black of the arc, the logo keeps its tilt
-    const diving = !!(sec && sec.id === "hero" && t && G.dive >= .015);
-    if (diving) {
+    if (sec && sec.id === "hero" && t && G.dive >= .015) {
       const d = G.dive, s = 1 + 15 * Math.pow(smooth(.04, 1, d), 3), c = smooth(0, .35, d);
       const ox = lerp(t.x - .15 * t.w, innerWidth / 2, c), oy = lerp(t.y + .02 * t.w, innerHeight / 2, c);
       const w = t.w * s;
@@ -250,46 +285,60 @@
     if (curKey === undefined) { curKey = anchor; if (t) Object.assign(M, t); setGround(bg); }
     // a new anchor: decide how to get there
     if (anchor !== curKey) {
-      const wasOn = curKey && M.o > .05;
-      const deep = G.dive > .5 && (sec && sec.id === "hero" || (tr && tr.fromHero));
-      const fromHero = !!(curKey && curKey.closest && curKey.closest("#hero") && G.dive > .5);
-      const prev = curKey;
-      if (!anchor) tr = { kind: "out", t0: now, o0: M.o, prev };
-      else if (fromHero || deep) tr = { kind: "in", t0: now, fromHero };                         // out of the black: appear in place
-      else if (wasOn && bg === curBg && fill >= mFill - .08 && !(sec && sec.dataset.move === "fade")) tr = { kind: "fly", t0: now, from: { x: M.x, y: M.y, w: M.w }, o0: M.o };
-      else tr = { kind: wasOn ? "swap" : "in", t0: now, o0: M.o, prev };
+      const prev = curKey, el = prev && prev.closest ? prev : null;
+      let prevOn = false;
+      if (prev && M.o > .05) { const r = rectOf(prev); prevOn = r.y + r.w / 2 > 0 && r.y - r.w / 2 < innerHeight; }
+      const fromHero = !!(el && el.closest("#hero") && G.dive > .5);
+      const sameSec = !!(el && anchor && anchor.closest && el.closest("[data-gl]") === sec);
+      if (!anchor) tr = prevOn ? { kind: "out", t0: now, o0: M.o, prev } : null;
+      else if (fromHero) tr = { kind: "in", t0: now, dur: .3 };                               // out of the black: appear in place
+      else if (sameSec && sec.dataset.move === "fade") tr = { kind: "in", t0: now, dur: .22 };  // big blocks: it passes to the next title
+      else if (sameSec && prevOn && fill >= mFill - .08) {
+        // rows: it walks to the next one; scrolling fast it simply lands there, it never trails behind
+        if (vel > 500) tr = null;
+        else { undock(); tr = { kind: "fly", t0: now, from: { x: M.x, y: M.y, w: M.w }, o0: M.o }; }
+      }
+      else tr = { kind: prevOn ? "swap" : "in", t0: now, o0: M.o, prev, dur: .28 };           // another section: fade, then appear there
       curKey = anchor;
+      if (anchor && !t) t = rectOf(anchor);
     }
     if (tr) {
       const e = now - tr.t0;
       if (tr.kind === "fly") {
-        const p = easeIO(clamp(e / .55, 0, 1));
+        if (!t) t = rectOf(anchor);
+        const p = easeIO(clamp(e / .35, 0, 1));
         M.x = lerp(tr.from.x, t.x, p); M.y = lerp(tr.from.y, t.y, p); M.w = lerp(tr.from.w, t.w, p);
         M.o = lerp(tr.o0, 1, p); M.s = 1; setGround(bg);
         if (p >= 1) tr = null;
       } else if (tr.kind === "out") {
         follow(tr.prev);
-        M.o = tr.o0 * (1 - smooth(0, .25, e)); M.s = 1 - .1 * smooth(0, .25, e);
-        if (e >= .25) tr = null;
+        M.o = tr.o0 * (1 - smooth(0, .2, e)); M.s = 1 - .04 * smooth(0, .2, e);
+        if (e >= .2) { tr = null; undock(); }
       } else {
         // swap: fade out where it is, then appear at the new anchor; in: just appear
-        const outT = tr.kind === "swap" ? .2 : 0;
+        const outT = tr.kind === "swap" ? .12 : 0;
         if (e < outT) { follow(tr.prev); M.o = tr.o0 * (1 - e / outT); }
         else {
-          if (!tr.jumped) { tr.jumped = true; setGround(bg); mFill = fill; mf.fill(fill); }
-          const p = smooth(0, .45, e - outT);
-          if (t) { M.x = t.x; M.y = t.y; M.w = t.w; }
-          M.o = p; M.s = .9 + .1 * easeIO(p);
+          if (!tr.jumped) {
+            tr.jumped = true; setGround(bg); mFill = fill; mf.fill(fill);
+            if (canDock(anchor)) dock(anchor); else undock();
+          }
+          const p = smooth(0, tr.dur, e - outT);
+          if (!docked && (t || anchor)) { const q = t || rectOf(anchor); M.x = q.x; M.y = q.y; M.w = q.w; }
+          M.o = p; M.s = .96 + .04 * easeIO(p);
           if (p >= 1) tr = null;
         }
       }
-    } else if (t) { M.x = t.x; M.y = t.y; M.w = t.w; M.o = 1; M.s = 1; setGround(bg); }
-    else { M.o = 0; }
+    } else if (anchor) {
+      if (canDock(anchor)) dock(anchor);
+      else if (t) { undock(); M.x = t.x; M.y = t.y; M.w = t.w; }
+      M.o = 1; M.s = 1; setGround(bg);
+    } else { undock(); M.o = 0; }
     paint();
     // things that live inside the logo (the clients) are only there when the logo is
     const settled = !(tr && tr.kind === "swap" && !tr.jumped);
     withLogo.forEach(el => { const on = settled && curKey && curKey.closest && el.closest("section") === curKey.closest("section"); el.style.opacity = on ? M.o.toFixed(3) : "0"; });
-    // how much of the arc is drawn: it fills smoothly, it never visibly empties (that happens while hidden)
+    // how much of the arc is drawn: it follows smoothly; it only goes back while hidden, in a swap
     if (!tr || tr.kind !== "swap" || tr.jumped) mFill = lerp(mFill, fill, 1 - Math.pow(.004, dt));
     mf.fill(Math.abs(mFill - fill) < .002 ? fill : mFill);
     mascot.classList.toggle("is-filling", fill < .999 || mFill < .995);
@@ -310,7 +359,7 @@
         .to(".hero__title .ln > span", { yPercent: -40, autoAlpha: 0, stagger: .04, ease: "power2.in", duration: .3 }, .02)
         .to(".hero__corner", { autoAlpha: 0, duration: .2 }, 0)
         .to("#heroInk", { opacity: 1, duration: .12, ease: "none" }, .42)
-        .fromTo("#heroQ", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: .16, ease: "power2.out" }, .5)
+        .fromTo("#heroQ", light ? { opacity: 0 } : { opacity: 0, filter: "blur(10px)" }, light ? { opacity: 1, duration: .16, ease: "power2.out" } : { opacity: 1, filter: "blur(0px)", duration: .16, ease: "power2.out" }, .5)
         .to({}, { duration: .05 });
     }
 
@@ -336,7 +385,7 @@
       const words = $$(".w", p), last = !!p.closest(".ftr");   // the last sentence must be whole before the page ends
       ScrollTrigger.create({
         trigger: p, start: last ? "top 92%" : "top 88%", end: last ? "top 40%" : "top 42%", scrub: true,
-        onUpdate: s => { const n = s.progress * words.length * 1.1; words.forEach((w, i) => w.classList.toggle("on", i < n)); }
+        onUpdate: s => { const n = Math.ceil(s.progress * words.length * 1.1); if (n === p._n) return; p._n = n; words.forEach((w, i) => w.classList.toggle("on", i < n)); }
       });
     });
 
@@ -395,7 +444,7 @@
     if (svcs.length) {
       svcs.forEach((sv, i) => {
         ScrollTrigger.create({
-          trigger: sv, start: "top 55%", end: "bottom 55%",
+          trigger: sv, start: "top 40%", end: "bottom 40%",
           onToggle: s => { if (s.isActive) svcs.forEach(o => o.classList.toggle("is-current", o === sv)); },
           onUpdate: s => { G.svc = clamp((i + .25 + .75 * s.progress) / svcs.length, .1, 1); }
         });
@@ -420,9 +469,11 @@
           stps.forEach((c, i) => {
             const local = p - i;
             const op = (i === 0 ? 1 : smooth(-.02, .16, local)) * (i === n - 1 ? 1 : 1 - smooth(.84, 1.0, local));
+            if (c._op === op) return;
+            c._op = op;
             c.style.opacity = op.toFixed(3);
             c.style.visibility = op > .01 ? "visible" : "hidden";
-            c.style.filter = `blur(${((1 - op) * 8).toFixed(2)}px)`;
+            if (!light) c.style.filter = `blur(${((1 - op) * 8).toFixed(2)}px)`;
             c.style.transform = `translateY(${((1 - op) * (local < .5 ? 40 : -40)).toFixed(1)}px)`;
           });
           gsap.set(bar, { scaleX: s.progress });
@@ -478,9 +529,11 @@
         chs.forEach((c, i) => {
           const local = p - i;                       // 0..1 while this chapter is on screen
           const op = (i === 0 ? 1 : smooth(-.05, .08, local)) * (i === n - 1 ? 1 : 1 - smooth(.92, 1.05, local));
+          if (c._op === op) return;
+          c._op = op;
           c.style.opacity = op.toFixed(3);
           c.style.visibility = op > .01 ? "visible" : "hidden";
-          c.style.filter = `blur(${((1 - op) * 8).toFixed(2)}px)`;
+          if (!light) c.style.filter = `blur(${((1 - op) * 8).toFixed(2)}px)`;
           c.style.transform = `translateY(calc(${mobile() ? "0px" : "-50%"} + ${((1 - op) * (local < .5 ? 30 : -30)).toFixed(1)}px))`;
         });
         const k = clamp(Math.floor(p), 0, n - 1);
@@ -517,33 +570,46 @@
   /* C · a dictionary entry, the logo fills while you read */
   function sceneC(sec) {
     $$(".entry", sec).forEach(en => gsap.from(en, { y: 40, autoAlpha: 0, duration: 1, ease: "expo.out", scrollTrigger: { trigger: en, start: "top 85%" } }));
-    gsap.from($(".nomeC__word", sec), { yPercent: 30, autoAlpha: 0, filter: "blur(10px)", duration: 1.2, ease: "expo.out", scrollTrigger: { trigger: sec, start: "top 70%" } });
+    gsap.from($(".nomeC__word", sec), { yPercent: 30, autoAlpha: 0, ...(light ? {} : { filter: "blur(10px)" }), duration: 1.2, ease: "expo.out", scrollTrigger: { trigger: sec, start: "top 70%" } });
     ScrollTrigger.create({ trigger: sec, start: "top 40%", end: "bottom 80%", scrub: true, onUpdate: s => { G.nome = .15 + .85 * s.progress; } });
   }
+
+  function holdScroll(on) { root.classList.toggle("no-scroll", on); if (lenis) on ? lenis.stop() : lenis.start(); }
 
   /* ---------------- menu ---------------- */
   const menuBtn = $("#menuBtn"), menuLabel = $("#menuLabel");
   let menuOpen = false;
-  function openMenu() { menuOpen = true; document.body.classList.add("menu-open"); menuBtn.setAttribute("aria-expanded", "true"); menuLabel.textContent = "Chiudi"; lenis && lenis.stop(); hdrGround(); }
-  function closeMenu() { if (!menuOpen) return; menuOpen = false; document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", "false"); menuLabel.textContent = "Menu"; lenis && lenis.start(); hdrGround(); }
+  function openMenu() { menuOpen = true; document.body.classList.add("menu-open"); menuBtn.setAttribute("aria-expanded", "true"); menuLabel.textContent = "Chiudi"; holdScroll(true); hdrGround(); }
+  function closeMenu() { if (!menuOpen) return; menuOpen = false; document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", "false"); menuLabel.textContent = "Menu"; holdScroll(false);
+    // the header keeps its menu colours until the panel has gone up
+    document.body.classList.add("menu-closing"); clearTimeout(closing); closing = setTimeout(() => { closing = 0; document.body.classList.remove("menu-closing"); hdrGround(); }, root.classList.contains("no-anim") ? 0 : 700);
+    hdrGround(); }
   menuBtn.addEventListener("click", () => menuOpen ? closeMenu() : openMenu());
   addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
   $("#toTop").addEventListener("click", () => scrollTo(0));
 
   /* header: hides while reading downward */
   // once you leave the top it gets a solid ground in the colour of the section below it, so it never sits on a big title
-  const hdr = $(".hdr"); let lastY = 0;
+  const hdr = $(".hdr"); let lastY = 0, hdrFree = 0, closing = 0;
   const hdrGround = () => {
-    const solid = scrollY > 80 && !menuOpen;
+    const solid = scrollY > 80 && !menuOpen && !closing;
     hdr.classList.toggle("is-solid", solid);
-    if (!solid) return;
     const probe = hdr.offsetHeight / 2;
     const sec = sections.find(s => { if (s.hidden) return false; const r = s.getBoundingClientRect(); return r.top <= probe && r.bottom > probe; });
     let bg = sec ? sec.dataset.bg : "paper";
     if (sec && sec.id === "hero" && G.dive > .45) bg = "ink";
     hdr.dataset.ground = bg;
   };
-  addEventListener("scroll", () => { const y = scrollY; if (!menuOpen) hdr.classList.toggle("is-hidden", y > 240 && y > lastY + 2); if (y < lastY - 2 || y < 240) hdr.classList.remove("is-hidden"); lastY = y; hdrGround(); }, { passive: true });
+  addEventListener("scroll", () => {
+    const y = scrollY;
+    if (performance.now() < hdrFree) hdr.classList.remove("is-hidden");
+    else if (!menuOpen && y > 240 && y > lastY + 2) hdr.classList.add("is-hidden");
+    else if (y < lastY - 2 || y < 240) hdr.classList.remove("is-hidden");
+    if (Math.abs(y - lastY) > 2) lastY = y;   // the last slow pixels of a smooth scroll are not a change of direction
+    hdrGround();
+  }, { passive: true });
+
+  hdrGround();
 
   /* ---------------- form: the logo fills while you write ---------------- */
   const form = $("#form");
@@ -560,8 +626,11 @@
       });
       if (ok && !checks[3]()) { ok = false; $("#formMsg").textContent = "Serve il consenso alla privacy."; $("#f-privacy").focus(); }
       if (!ok) return;
-      const btn = $("button[type=submit]", form); btn.disabled = true; $("#formMsg").textContent = "Invio…";
-      setTimeout(() => { btn.disabled = false; $("#formMsg").textContent = "Anteprima: l'invio verrà collegato al modulo del sito."; }, 700);
+      // no mail server on this hosting yet: the visitor's own mail app opens with the message ready to send
+      const subject = "Richiesta dal sito · " + $("#f-nome").value.trim();
+      const body = [$("#f-msg").value.trim(), "", $("#f-nome").value.trim(), $("#f-email").value.trim(), $("#f-tel").value.trim()].filter((l, i) => i < 2 || l).join("\n");
+      location.href = `mailto:info@felicitymedia.it?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      $("#formMsg").textContent = "Si apre la tua email con il messaggio pronto: premi invio per spedirlo.";
     });
   }
 
@@ -571,9 +640,19 @@
   const lf = faces.loader;
   lf.fill(0); lf.eyesOn(0); faces.menu.fill(1); mf.fill(0); mf.eyesOn(0);
   cf.fill(1); cf.eyesOn(1);
-  lenis && lenis.stop();
+  holdScroll(true);
   const fontsReady = Promise.all([document.fonts.load('300 100px "Funnel Display"'), document.fonts.ready]).catch(() => {});
-  const goToHash = () => { const t = location.hash && location.hash.length > 1 && $(location.hash); if (t) scrollTo(t, { immediate: true, force: true }); };
+  const goToHash = () => {
+    const t = location.hash && location.hash.length > 1 && $(location.hash);
+    if (!t) return;
+    holdScroll(false); hdrFree = performance.now() + 500;
+    const y = () => Math.round(t.getBoundingClientRect().top + scrollY - (parseFloat(getComputedStyle(t).scrollMarginTop) || 0));
+    const go = () => { if (lenis) lenis.scrollTo(y(), { immediate: true, force: true }); else window.scrollTo(0, y()); lastY = scrollY; };
+    go();
+    // the phone can still restore its old position or change the layout: check again once things are settled
+    requestAnimationFrame(() => requestAnimationFrame(go));
+    addEventListener("load", go, { once: true });
+  };
 
   // what each page does when it is revealed
   function intro(tl, at) {
@@ -586,14 +665,15 @@
   }
 
   if (first && page === "home") {
-    curtain.remove();
+    gsap.set(curtain, { clipPath: "inset(100% 0 0 0)" });   // not needed now, but it comes down when leaving
     const minWait = new Promise(r => setTimeout(r, reduce ? 0 : 1300));
     gsap.to({ p: 0 }, { p: 1, duration: reduce ? 0 : 1.1, ease: "power3.inOut", onUpdate() { lf.fill(this.targets()[0].p); }, onComplete() { lf.eyesOn(1); } });
     gsap.to("#loaderWord", { opacity: 1, duration: .8, delay: .5, ease: "power2.out" });
     Promise.all([fontsReady, minWait]).then(() => {
       buildScenes();
-      const tl = gsap.timeline({ onComplete: () => { $("#loader").remove(); lenis && lenis.start(); ScrollTrigger.refresh(); goToHash(); } })
-        .to("#loader", { clipPath: "inset(0 0 100% 0)", duration: reduce ? 0 : 1, ease: "expo.inOut" });
+      const tl = gsap.timeline({ onComplete: () => { $("#loader").remove(); holdScroll(false); ScrollTrigger.refresh(); goToHash(); } })
+        .to("#loader", { clipPath: "inset(0 0 100% 0)", duration: reduce ? 0 : 1, ease: "expo.inOut" })
+        .call(() => holdScroll(false), null, reduce ? 0 : .7);   // the wheel answers as soon as the page shows
       intro(tl, "-=.7");
     });
   } else {
@@ -604,9 +684,11 @@
       buildScenes();
       ScrollTrigger.refresh();
       goToHash();
-      const tl = gsap.timeline({ onComplete: () => { curtain.classList.remove("is-on"); lenis && lenis.start(); } })
-        .fromTo(curtain, { clipPath: "inset(0 0 0% 0)" }, { clipPath: "inset(0 0 100% 0)", duration: reduce ? 0 : .9, ease: "expo.inOut" });
-      if (location.hash.length > 1) { gsap.set(G, { intro: 1 }); tl.from(".hdr", { autoAlpha: 0, duration: .6 }, .3); }
+      const tl = gsap.timeline({ onComplete: () => { curtain.classList.remove("is-on"); holdScroll(false); } })
+        .fromTo(curtain, { clipPath: "inset(0 0 0% 0)" }, { clipPath: "inset(0 0 100% 0)", duration: reduce ? 0 : .9, ease: "expo.inOut" })
+        .call(() => holdScroll(false), null, reduce ? 0 : .6);
+      // reloaded further down the page, or landing on a section: nothing to draw again
+      if (location.hash.length > 1 || scrollY > 40) { gsap.set(G, { intro: 1 }); tl.from(".hdr", { autoAlpha: 0, duration: .6 }, .3); }
       else intro(tl, .25);
     });
   }
@@ -617,6 +699,15 @@
   addEventListener("resize", () => {
     if (touch && innerWidth === lastW) return;   // only the browser bars moved
     lastW = innerWidth;
-    clearTimeout(rt); rt = setTimeout(() => ScrollTrigger.refresh(), 160);
+    resizing = true;
+    clearTimeout(rt); rt = setTimeout(() => {
+      ScrollTrigger.refresh();
+      // sections are sized on the window: stay at the same point of the same section
+      if (keep && keep.s.isConnected && !keep.s.hidden) {
+        const r = keep.s.getBoundingClientRect(), y = Math.round(scrollY + r.top + keep.rel * r.height - innerHeight * .5);
+        if (lenis) lenis.scrollTo(y, { immediate: true, force: true }); else window.scrollTo(0, y);
+      }
+      resizing = false;
+    }, 160);
   });
 })();
