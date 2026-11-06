@@ -416,7 +416,7 @@ html:not(.js) .mascot{display:none}
   .lav__item:nth-of-type(2){padding-left:0}
   .lav__text{font-size:9.6vw}
   .metodo{height:440vh}
-  .metodo__face{--fw:170vw;left:calc(55vw - var(--fw)/2);top:calc(30% - var(--fw)/2)}
+  .metodo__face{--fw:min(170vw,113svh);left:calc(55vw - var(--fw)/2);top:calc(27% - var(--fw)/2)}
   .metodo__view{left:0;top:52%}
   .metodo__track{left:var(--gutter);align-items:flex-start;padding-top:2vh;gap:26vw}
   .step{width:78vw}
@@ -580,7 +580,7 @@ body[data-page="contatti"] .ftr,body[data-page="legale"] .ftr{border-radius:var(
   .metodo__nav{display:flex;position:absolute;left:var(--gutter);right:var(--gutter);bottom:clamp(24px,5vh,44px);justify-content:space-between;z-index:3;color:var(--paper);pointer-events:none}
   /* page hero */
   .phero{height:150vh}
-  .phero__face{--fw:150vw;left:calc(60vw - var(--fw)/2);top:calc(36% - var(--fw)/2)}
+  .phero__face{--fw:min(150vw,108svh);left:calc(60vw - var(--fw)/2);top:calc(36% - var(--fw)/2)}
   .phero__title{font-size:16vw}
   .phero__copy{top:auto;bottom:calc(clamp(28px,6vh,72px) + 20vw)}
   .phero__sub{max-width:20ch;font-size:clamp(22px,6vw,28px)}
@@ -596,7 +596,7 @@ body[data-page="contatti"] .ftr,body[data-page="legale"] .ftr{border-radius:var(
   .next__arrow{width:56px}
   /* metodo page */
   .steps{height:440vh}
-  .steps__face{--fw:150vw;left:calc(55vw - var(--fw)/2);top:calc(27% - var(--fw)/2)}
+  .steps__face{--fw:min(150vw,108svh);left:calc(55vw - var(--fw)/2);top:calc(27% - var(--fw)/2)}
   .steps__list{left:var(--gutter);top:50%}
   .stp{top:0;translate:none}
   .stp__word{font-size:16vw;margin-bottom:14px}
