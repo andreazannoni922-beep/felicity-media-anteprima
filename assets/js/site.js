@@ -16,21 +16,7 @@
   const G = { intro: 0, dive: 0, nome: .15, arc: .16, foot: .25, form: .2, svc: .2, steps: .25 };
   window.__fm.G = G;
 
-  /* ---------------- which version of "Il nome" (home only) ---------------- */
-  const params = new URLSearchParams(location.search);
-  const pick = (params.get("nome") || "a").toLowerCase();
-  const variant = ["a", "b", "c"].includes(pick) ? pick : "a";
-  if (page === "home") {
-    $$(".nome").forEach(s => {
-      const on = s.dataset.variant === variant;
-      s.hidden = !on;
-      s.id = on ? "nome" : "nome-" + s.dataset.variant;
-    });
-    if (params.has("nome")) {
-      $("#vswitch").classList.add("is-on");
-      $$("#vswitch a").forEach(a => a.setAttribute("aria-current", String(a.textContent.toLowerCase() === variant)));
-    }
-  }
+  const variant = "a";   // the other versions of "Il nome" are parked in src/parcheggio/nome-varianti.html
 
   /* ---------------- current page in the menu ---------------- */
   $$("[data-nav]").forEach(a => { if (a.dataset.nav === page) a.setAttribute("aria-current", "page"); });
