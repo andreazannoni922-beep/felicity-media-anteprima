@@ -144,8 +144,14 @@
       if (num) num.textContent = Math.round(view.scrollLeft / stepW()) + 1;
       onMove && onMove(p, view.scrollLeft / stepW());
     };
-    [prev, next].forEach(b => b.addEventListener("click", () => view.scrollBy({ left: +b.dataset.dir * stepW(), behavior: reduce ? "auto" : "smooth" })));
-    view.addEventListener("scroll", update, { passive: true });
+    // quick taps add up: each one aims one step past the last aim, not past where the row is now
+    let aim = null, idle = 0;
+    [prev, next].forEach(b => b.addEventListener("click", () => {
+      const last = items().length - 1, base = aim ?? Math.round(view.scrollLeft / stepW());
+      aim = clamp(base + +b.dataset.dir, 0, last);
+      view.scrollTo({ left: aim * stepW(), behavior: reduce ? "auto" : "smooth" });
+    }));
+    view.addEventListener("scroll", () => { clearTimeout(idle); idle = setTimeout(() => { aim = null; }, 220); update(); }, { passive: true });
     addEventListener("resize", update);
     update();
     return update;
@@ -184,19 +190,20 @@
     if (there === here && url.search === location.search) {
       e.preventDefault(); closeMenu();
       if (!url.hash || url.hash === "#top") { scrollTo(0); return; }
-      const t = $(url.hash); if (t) scrollTo(t, { offset: 0 });
+      const t = $(url.hash);
+      if (t) { scrollTo(t, { offset: 0 }); if (t.id === "main") t.focus({ preventScroll: true }); }
       return;
     }
     e.preventDefault();
     leaveTo(url.href);
   });
-  let leaving = false;
+  let leaving = false, leaveTl = null;
   function leaveTo(href) {
     if (leaving) return; leaving = true;
     if (reduce) { location.href = href; return; }
     cf.fill(0); cf.eyesOn(0);
     curtain.classList.add("is-on");
-    gsap.timeline({ onComplete: () => { location.href = href; } })
+    leaveTl = gsap.timeline({ onComplete: () => { location.href = href; } })
       .fromTo(curtain, { clipPath: "inset(100% 0 0 0)" }, { clipPath: "inset(0% 0 0 0)", duration: .7, ease: "expo.inOut" })
       .to({ p: 0 }, { p: 1, duration: .45, ease: "power2.inOut", onUpdate() { cf.fill(this.targets()[0].p); } }, "-=.3");
   }
@@ -204,6 +211,7 @@
     if (!e.persisted) return;
     // back from the browser's memory: the page is simply there, no curtain and no menu closing
     root.classList.add("no-anim");
+    if (leaveTl) { leaveTl.kill(); leaveTl = null; }
     leaving = false; gsap.killTweensOf(curtain); curtain.classList.remove("is-on"); gsap.set(curtain, { clipPath: "inset(0 0 100% 0)" });
     closeMenu();
     requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("no-anim")));
@@ -295,7 +303,7 @@
       else if (sameSec && sec.dataset.move === "fade") tr = { kind: "in", t0: now, dur: .22 };  // big blocks: it passes to the next title
       else if (sameSec && prevOn && fill >= mFill - .08) {
         // rows: it walks to the next one; scrolling fast it simply lands there, it never trails behind
-        if (vel > 500) tr = null;
+        if (vel > 150 || (tr && tr.kind === "fly")) tr = null;
         else { undock(); tr = { kind: "fly", t0: now, from: { x: M.x, y: M.y, w: M.w }, o0: M.o }; }
       }
       else tr = { kind: prevOn ? "swap" : "in", t0: now, o0: M.o, prev, dur: .28 };           // another section: fade, then appear there
@@ -342,7 +350,7 @@
     if (!tr || tr.kind !== "swap" || tr.jumped) mFill = lerp(mFill, fill, 1 - Math.pow(.004, dt));
     mf.fill(Math.abs(mFill - fill) < .002 ? fill : mFill);
     mascot.classList.toggle("is-filling", fill < .999 || mFill < .995);
-    const eyes = fill >= .985 ? 1 : 0;
+    const eyes = fill >= .985 && mFill >= .985 ? 1 : 0;
     if (eyes !== mEyes) { mEyes = eyes; mf.eyesOn(eyes); }
   });
 
@@ -455,7 +463,6 @@
           onUpdate: s => lis.forEach((li, j) => li.classList.toggle("on", s.progress * lis.length * 1.15 > j))
         });
       });
-      ScrollTrigger.create({ trigger: svcs[svcs.length - 1], start: "bottom 55%", onEnter: () => { G.svc = 1; } });
     }
 
     /* METODO PAGE: four steps, the arc fills a quarter at a time */
@@ -498,8 +505,8 @@
       gsap.from(".person", { y: 30, autoAlpha: 0, duration: .9, ease: "expo.out", stagger: .06, scrollTrigger: { trigger: ".people", start: "top 80%" } });
     }
     if ($(".contatti") && page !== "contatti") gsap.from(".contatti__title", { yPercent: 30, autoAlpha: 0, duration: 1.2, ease: "expo.out", scrollTrigger: { trigger: ".contatti", start: "top 70%" } });
-    if ($(".form")) gsap.from(".form > *", { y: 24, autoAlpha: 0, duration: .9, ease: "expo.out", stagger: .05, scrollTrigger: { trigger: ".form", start: "top 92%" } });
-    $$(".cta, .next, .info").forEach(el => gsap.from(el.children, { y: 40, autoAlpha: 0, duration: 1.1, ease: "expo.out", stagger: .08, scrollTrigger: { trigger: el, start: "top 80%" } }));
+    if ($(".form")) gsap.from(".form > *", { y: 24, opacity: 0, duration: .9, ease: "expo.out", stagger: .05, scrollTrigger: { trigger: ".form", start: "top 92%" } });
+    $$(".cta, .next, .info").forEach(el => gsap.from(el.children, { y: 40, opacity: 0, duration: 1.1, ease: "expo.out", stagger: .08, scrollTrigger: { trigger: el, start: "top 80%" } }));
     ScrollTrigger.create({ trigger: "#footer", start: "top 60%", end: "bottom bottom", scrub: true, onUpdate: s => { G.foot = .25 + .75 * smooth(.1, .92, s.progress); } });
   }
 
@@ -579,20 +586,21 @@
   /* ---------------- menu ---------------- */
   const menuBtn = $("#menuBtn"), menuLabel = $("#menuLabel");
   let menuOpen = false;
-  function openMenu() { menuOpen = true; document.body.classList.add("menu-open"); menuBtn.setAttribute("aria-expanded", "true"); menuLabel.textContent = "Chiudi"; holdScroll(true); hdrGround(); }
-  function closeMenu() { if (!menuOpen) return; menuOpen = false; document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", "false"); menuLabel.textContent = "Menu"; holdScroll(false);
-    // the header keeps its menu colours until the panel has gone up
-    document.body.classList.add("menu-closing"); clearTimeout(closing); closing = setTimeout(() => { closing = 0; document.body.classList.remove("menu-closing"); hdrGround(); }, root.classList.contains("no-anim") ? 0 : 700);
-    hdrGround(); }
+  // the header takes the menu's colours only when the panel is actually behind it
+  let hdrOnMenu = false, hdrT = 0;
+  const setHdrOnMenu = on => { clearTimeout(hdrT); hdrT = setTimeout(() => { hdrOnMenu = on; document.body.classList.toggle("hdr-on-menu", on); hdrGround(); }, root.classList.contains("no-anim") ? 0 : on ? 240 : 530); };
+  const pageParts = () => [$("#main"), $("#footer")];
+  function openMenu() { menuOpen = true; document.body.classList.add("menu-open"); menuBtn.setAttribute("aria-expanded", "true"); menuLabel.textContent = "Chiudi"; holdScroll(true); pageParts().forEach(el => el.inert = true); setHdrOnMenu(true); }
+  function closeMenu() { if (!menuOpen) return; menuOpen = false; document.body.classList.remove("menu-open"); menuBtn.setAttribute("aria-expanded", "false"); menuLabel.textContent = "Menu"; holdScroll(false); pageParts().forEach(el => el.inert = false); setHdrOnMenu(false); }
   menuBtn.addEventListener("click", () => menuOpen ? closeMenu() : openMenu());
-  addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
+  addEventListener("keydown", e => { if (e.key === "Escape" && menuOpen) { closeMenu(); menuBtn.focus(); } });
   $("#toTop").addEventListener("click", () => scrollTo(0));
 
   /* header: hides while reading downward */
   // once you leave the top it gets a solid ground in the colour of the section below it, so it never sits on a big title
-  const hdr = $(".hdr"); let lastY = 0, hdrFree = 0, closing = 0;
+  const hdr = $(".hdr"); let lastY = 0, hdrFree = 0;
   const hdrGround = () => {
-    const solid = scrollY > 80 && !menuOpen && !closing;
+    const solid = scrollY > 80 && !hdrOnMenu;
     hdr.classList.toggle("is-solid", solid);
     const probe = hdr.offsetHeight / 2;
     const sec = sections.find(s => { if (s.hidden) return false; const r = s.getBoundingClientRect(); return r.top <= probe && r.bottom > probe; });
@@ -610,12 +618,18 @@
   }, { passive: true });
 
   hdrGround();
+  hdr.addEventListener("focusin", () => { hdr.classList.remove("is-hidden"); hdrFree = performance.now() + 400; });   // a focused link is never out of sight
 
   /* ---------------- form: the logo fills while you write ---------------- */
   const form = $("#form");
   if (form) {
     const checks = [() => $("#f-nome").value.trim().length > 1, () => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test($("#f-email").value), () => $("#f-msg").value.trim().length > 4, () => $("#f-privacy").checked];
-    const formFill = () => { G.form = .2 + .8 * checks.filter(c => c()).length / checks.length; };
+    const formFill = () => {
+      G.form = .2 + .8 * checks.filter(c => c()).length / checks.length;
+      // a message goes away as soon as what it asks for is done
+      [["f-nome", checks[0]], ["f-email", checks[1]], ["f-msg", checks[2]]].forEach(([id, test]) => { const f = $("#" + id).closest(".field"); if (f.classList.contains("is-error") && test()) { f.classList.remove("is-error"); $(".field__err", f).textContent = ""; } });
+      if (checks[3]() && $("#formMsg").textContent.startsWith("Serve")) $("#formMsg").textContent = "";
+    };
     form.addEventListener("input", formFill); form.addEventListener("change", formFill);
     form.addEventListener("submit", e => {
       e.preventDefault();
@@ -626,11 +640,27 @@
       });
       if (ok && !checks[3]()) { ok = false; $("#formMsg").textContent = "Serve il consenso alla privacy."; $("#f-privacy").focus(); }
       if (!ok) return;
-      // no mail server on this hosting yet: the visitor's own mail app opens with the message ready to send
-      const subject = "Richiesta dal sito · " + $("#f-nome").value.trim();
-      const body = [$("#f-msg").value.trim(), "", $("#f-nome").value.trim(), $("#f-email").value.trim(), $("#f-tel").value.trim()].filter((l, i) => i < 2 || l).join("\n");
+      const msg = $("#formMsg"), btn = $("button[type=submit]", form);
+      const val = id => $("#" + id).value.trim();
+      if (window.FM_FORM) {
+        btn.disabled = true; msg.textContent = "Invio…";
+        fetch(window.FM_FORM, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome: val("f-nome"), email: val("f-email"), telefono: val("f-tel"), messaggio: val("f-msg"), privacy: true, website: form.elements.website.value })
+        }).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(d => {
+          if (!d.ok) throw 0;
+          form.reset(); formFill(); G.form = 1;
+          msg.textContent = "Messaggio inviato. Ti rispondiamo entro 24 ore.";
+        }).catch(() => {
+          msg.innerHTML = 'Non è partito. Scrivici a <a href="mailto:info@felicitymedia.it">info@felicitymedia.it</a>.';
+        }).finally(() => { btn.disabled = false; });
+        return;
+      }
+      // no mail server here: the visitor's own mail app opens with the message ready to send
+      const subject = "Richiesta dal sito · " + val("f-nome");
+      const body = [val("f-msg"), "", val("f-nome"), val("f-email"), val("f-tel")].filter((l, n) => n < 2 || l).join("\n");
       location.href = `mailto:info@felicitymedia.it?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      $("#formMsg").textContent = "Si apre la tua email con il messaggio pronto: premi invio per spedirlo.";
+      msg.textContent = "Si apre la tua email con il messaggio pronto: premi invio per spedirlo.";
     });
   }
 
@@ -701,11 +731,14 @@
     lastW = innerWidth;
     resizing = true;
     clearTimeout(rt); rt = setTimeout(() => {
+      if (lenis) lenis.resize();   // its scroll limit must be the new one before going back
       ScrollTrigger.refresh();
       // sections are sized on the window: stay at the same point of the same section
       if (keep && keep.s.isConnected && !keep.s.hidden) {
         const r = keep.s.getBoundingClientRect(), y = Math.round(scrollY + r.top + keep.rel * r.height - innerHeight * .5);
+        hdrFree = performance.now() + 400;
         if (lenis) lenis.scrollTo(y, { immediate: true, force: true }); else window.scrollTo(0, y);
+        lastY = scrollY;
       }
       resizing = false;
     }, 160);

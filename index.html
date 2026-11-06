@@ -11,11 +11,13 @@
 <meta property="og:description" content="Felicity Media è uno studio di comunicazione. Lavoriamo con aziende, professionisti, realtà sportive ed enti del terzo settore.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="it_IT">
+<meta property="og:image" content="https://andreazannoni922-beep.github.io/felicity-media-anteprima/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="assets/touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='280 280 440 440'%3E%3Cpath d='M497 297 A203 203 0 1 0 699.8 536 L595.4 536 A102 102 0 1 1 497 398 Z'/%3E%3Crect x='549' y='331' width='65' height='65'/%3E%3Crect x='617' y='423' width='65' height='65'/%3E%3C/svg%3E">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"ProfessionalService","name":"Felicity Media","description":"Studio di comunicazione: strategia, brand, digital, contenuti, media ed eventi.","founder":{"@type":"Person","name":"Alessio Molinari Bucarelli"},"vatID":"IT04032230261","email":"info@felicitymedia.it","telephone":"+393707180340","address":{"@type":"PostalAddress","addressLocality":"Modena","addressCountry":"IT"},"areaServed":"IT","knowsAbout":["Strategia di comunicazione","Brand identity","Social media","Campagne Meta e Google","Siti web","Ufficio stampa","Comunicazione per eventi"]}</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300;400&family=Funnel+Sans:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/site.css">
 <script>document.documentElement.classList.add("js");try{if(sessionStorage.getItem("fm-seen"))document.documentElement.classList.add("seen")}catch(e){}</script>
 </head>
@@ -65,7 +67,7 @@
   </div>
 </nav>
 <nav class="vswitch" id="vswitch" aria-label="Versioni della sezione Il nome"><span>Il nome</span><a href="?nome=a#nome">A</a><a href="?nome=b#nome">B</a><a href="?nome=c#nome">C</a></nav>
-<main id="main">
+<main id="main" tabindex="-1">
 <!-- HERO -->
   <section class="hero" id="hero" data-gl="anchor:.hero__face" data-fill="intro" data-bg="paper">
     <div class="hero__stage">
@@ -233,6 +235,7 @@
       <div>
         <p class="contatti__lead">Raccontaci la tua situazione, anche brevemente. Ti rispondiamo entro 24&nbsp;ore.</p>
         <form class="form" id="form" novalidate>
+          <div class="hp" aria-hidden="true"><label>Sito web<input name="website" tabindex="-1" autocomplete="off"></label></div>
           <div class="field"><label for="f-nome">Nome</label><input id="f-nome" name="nome" autocomplete="name" required><span class="field__err" aria-live="polite"></span></div>
           <div class="field"><label for="f-email">Email</label><input id="f-email" name="email" type="email" autocomplete="email" required><span class="field__err" aria-live="polite"></span></div>
           <div class="field field--full"><label for="f-tel">Telefono (facoltativo)</label><input id="f-tel" name="telefono" type="tel" autocomplete="tel"></div>
@@ -261,9 +264,9 @@
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js"></script>
-<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+<script src="assets/vendor/gsap.min.js"></script>
+<script src="assets/vendor/ScrollTrigger.min.js"></script>
+<script src="assets/vendor/lenis.min.js"></script>
 <script src="assets/js/site.js"></script>
 </body>
 </html>
