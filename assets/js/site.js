@@ -135,15 +135,31 @@
   function swipeRow(nav, onMove) {
     const view = document.getElementById(nav.dataset.for);
     const num = $("[data-n]", nav);
+    const hint = $("[data-hint]", nav);
     const items = () => [...view.querySelectorAll(":scope > * > :not(.is-dup):not(.mq__px)")];
     const stepW = () => { const it = items(); return it.length > 1 ? it[1].offsetLeft - it[0].offsetLeft : view.clientWidth * .8; };
     const update = () => {
       const max = view.scrollWidth - view.clientWidth;
       const p = max > 0 ? view.scrollLeft / max : 0;
       if (num) num.textContent = Math.round(view.scrollLeft / stepW()) + 1;
+      if (hint && view.scrollLeft > 8) hint.classList.add("is-off");
       onMove && onMove(p, view.scrollLeft / stepW());
     };
     view.addEventListener("scroll", update, { passive: true });
+    // with a mouse on a narrow window the row is dragged; a finger or a trackpad use the native scroll
+    let drag = null;
+    view.addEventListener("pointerdown", e => { if (e.pointerType === "mouse" && mobile()) { drag = { x: e.clientX, left: view.scrollLeft }; view.classList.add("is-dragging"); view.setPointerCapture(e.pointerId); } });
+    view.addEventListener("pointermove", e => { if (drag) view.scrollLeft = drag.left - (e.clientX - drag.x); });
+    const endDrag = () => {
+      if (!drag) return;
+      const moved = view.scrollLeft - drag.left, w = stepW(), last = items().length - 1;
+      const from = Math.round(drag.left / w), to = Math.abs(moved) > w * .12 ? from + Math.sign(moved) : from;
+      drag = null;
+      view.scrollTo({ left: clamp(to, 0, last) * w, behavior: reduce ? "auto" : "smooth" });
+      setTimeout(() => view.classList.remove("is-dragging"), 450);   // snapping comes back once the row has landed
+    };
+    view.addEventListener("pointerup", endDrag);
+    view.addEventListener("pointercancel", endDrag);
     addEventListener("resize", update);
     update();
     return update;
