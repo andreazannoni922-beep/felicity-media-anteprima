@@ -131,27 +131,19 @@
   }
 
   /* ---------------- swipe rows with arrows (mobile: never driven by the vertical scroll) ---------------- */
-  // Each .snav[data-for] drives a horizontal scroller with native swipe, snap and two arrows.
+  // Each .snav[data-for] follows a horizontal scroller moved only by the finger: native swipe and snap.
   function swipeRow(nav, onMove) {
     const view = document.getElementById(nav.dataset.for);
-    const [prev, next] = $$(".snav__btn", nav), num = $("[data-n]", nav);
+    const num = $("[data-n]", nav);
     const items = () => [...view.querySelectorAll(":scope > * > :not(.is-dup):not(.mq__px)")];
     const stepW = () => { const it = items(); return it.length > 1 ? it[1].offsetLeft - it[0].offsetLeft : view.clientWidth * .8; };
     const update = () => {
       const max = view.scrollWidth - view.clientWidth;
-      prev.disabled = view.scrollLeft <= 2; next.disabled = view.scrollLeft >= max - 2;
       const p = max > 0 ? view.scrollLeft / max : 0;
       if (num) num.textContent = Math.round(view.scrollLeft / stepW()) + 1;
       onMove && onMove(p, view.scrollLeft / stepW());
     };
-    // quick taps add up: each one aims one step past the last aim, not past where the row is now
-    let aim = null, idle = 0;
-    [prev, next].forEach(b => b.addEventListener("click", () => {
-      const last = items().length - 1, base = aim ?? Math.round(view.scrollLeft / stepW());
-      aim = clamp(base + +b.dataset.dir, 0, last);
-      view.scrollTo({ left: aim * stepW(), behavior: reduce ? "auto" : "smooth" });
-    }));
-    view.addEventListener("scroll", () => { clearTimeout(idle); idle = setTimeout(() => { aim = null; }, 220); update(); }, { passive: true });
+    view.addEventListener("scroll", update, { passive: true });
     addEventListener("resize", update);
     update();
     return update;

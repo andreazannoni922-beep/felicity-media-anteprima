@@ -470,13 +470,8 @@ html:not(.js) .curtain{display:none}
 .menu__item a[aria-current="page"] .t>span::after{content:"";display:inline-block;width:.14em;height:.14em;background:currentColor;margin-left:.24em;vertical-align:.1em}
 
 /* rows you swipe, with two arrows (phones only) */
-.snav{display:none;align-items:center;gap:10px}
-.snav__btn{display:grid;place-items:center;width:48px;height:48px;padding:0;border-radius:50%;border:1px solid currentColor;background:none;cursor:pointer;color:inherit;transition:opacity .3s var(--ease),transform .3s var(--ease)}
-.snav__btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.snav__btn:disabled{opacity:.22;cursor:default}
-.snav__btn:not(:disabled):active{transform:scale(.92)}
-.snav__btn:focus-visible{outline:1px dashed currentColor;outline-offset:4px}
-.snav__count{min-width:56px;text-align:center;font-variant-numeric:tabular-nums}
+.snav{display:none;align-items:center}
+.snav__count{font-variant-numeric:tabular-nums}
 
 /* ---------- PAGE HERO ---------- */
 .phero{position:relative;height:170vh;background:var(--paper)}
@@ -581,7 +576,7 @@ body[data-page="contatti"] .ftr,body[data-page="legale"] .ftr{border-radius:var(
   .metodo__track{position:relative;left:0;top:auto;bottom:auto;width:max-content;transform:none!important;align-items:flex-start;padding:0 var(--gutter);gap:calc(var(--gutter)*2)}
   .step{width:calc(100vw - var(--gutter)*2);scroll-snap-align:start}
   .step__word{font-size:15vw;margin-bottom:14px}
-  .metodo__bar{bottom:calc(clamp(24px,5vh,44px) + 70px)}
+  .metodo__bar{bottom:calc(clamp(24px,5vh,44px) + 32px)}
   .metodo__nav{display:flex;position:absolute;left:var(--gutter);right:var(--gutter);bottom:clamp(24px,5vh,44px);justify-content:space-between;z-index:3;color:var(--paper)}
   /* page hero */
   .phero{height:150vh}
