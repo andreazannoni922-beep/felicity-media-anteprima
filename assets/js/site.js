@@ -123,13 +123,19 @@
     const num = $("[data-n]", nav);
     const hint = $("[data-hint]", nav);
     const items = () => [...view.querySelectorAll(":scope > * > :not(.is-dup):not(.mq__px)")];
-    const stepW = () => { const it = items(); return it.length > 1 ? it[1].offsetLeft - it[0].offsetLeft : view.clientWidth * .8; };
+    // measured once and on resize: reading the layout at every scroll event is what makes a finger feel heavy
+    let w = 0, max = 0, shown = 0;
+    const measure = () => {
+      const it = items();
+      w = it.length > 1 ? it[1].offsetLeft - it[0].offsetLeft : view.clientWidth * .8;
+      max = view.scrollWidth - view.clientWidth;
+    };
+    const stepW = () => w;
     const update = () => {
-      const max = view.scrollWidth - view.clientWidth;
-      const p = max > 0 ? view.scrollLeft / max : 0;
-      if (num) num.textContent = Math.round(view.scrollLeft / stepW()) + 1;
-      if (hint && view.scrollLeft > 8) hint.classList.add("is-off");
-      onMove && onMove(p, view.scrollLeft / stepW());
+      const left = view.scrollLeft, n = Math.round(left / w) + 1;
+      if (num && n !== shown) { shown = n; num.textContent = n; }
+      if (hint && left > 8) hint.classList.add("is-off");
+      onMove && onMove(max > 0 ? left / max : 0, left / w);
     };
     view.addEventListener("scroll", update, { passive: true });
     // with a mouse on a narrow window the row is dragged; a finger or a trackpad use the native scroll
@@ -146,8 +152,10 @@
     };
     view.addEventListener("pointerup", endDrag);
     view.addEventListener("pointercancel", endDrag);
-    addEventListener("resize", update);
-    update();
+    const remeasure = () => { measure(); update(); };
+    addEventListener("resize", remeasure);
+    ScrollTrigger.addEventListener("refresh", remeasure);
+    remeasure();
     return update;
   }
 
@@ -163,7 +171,7 @@
 
   gsap.registerPlugin(ScrollTrigger);
   ScrollTrigger.config({ ignoreMobileResize: true });
-  const lenis = window.Lenis && !reduce && !touch ? new Lenis({ lerp: .1, smoothWheel: true }) : null;   // phones keep their native scroll
+  const lenis = window.Lenis && !reduce && !touch ? new Lenis({ lerp: .09, smoothWheel: true }) : null;   // phones keep their native scroll
   window.__fm.lenis = lenis;
   if (lenis) { lenis.on("scroll", ScrollTrigger.update); gsap.ticker.add(t => lenis.raf(t * 1000)); gsap.ticker.lagSmoothing(0); }
   const scrollTo = (target, opts = {}) => {
@@ -224,14 +232,26 @@
   let curKey, curBg = null, mFill = 0, mEyes = -1, tr = null, docked = null, vel = 0, velY = scrollY, keep = null, resizing = false;
   const painted = {};
   const put = (prop, v) => { if (painted[prop] !== v) { painted[prop] = v; mascot.style[prop] = v; } };
+  // where the sections are: measured once and when the page changes, read from memory at every frame
+  let boxes = new Map(), anchorOn = new WeakMap();
+  const measureSections = () => {
+    boxes = new Map(sections.filter(s => !s.hidden).map(s => { const r = s.getBoundingClientRect(); return [s, { top: r.top + scrollY, h: r.height }]; }));
+    anchorOn = new WeakMap();
+  };
+  measureSections();
+  ScrollTrigger.addEventListener("refresh", measureSections);
+  addEventListener("resize", measureSections);
   function activeSection() {
-    const mid = innerHeight * .5;
-    for (const s of sections) { if (s.hidden) continue; const r = s.getBoundingClientRect(); if (r.height && r.top <= mid && r.bottom >= mid) return s; }
+    const mid = scrollY + innerHeight * .5;
+    for (const [s, b] of boxes) if (b.h && b.top <= mid && b.top + b.h >= mid) return s;
     return null;
   }
   function anchorOf(sec) {
     const mode = sec ? sec.dataset.gl : "none";
-    if (mode.startsWith("anchor:")) { const h = $(mode.slice(7), sec); if (h && h.getBoundingClientRect().width > 0) return h; }
+    if (mode.startsWith("anchor:")) {
+      const h = $(mode.slice(7), sec);
+      if (h) { let on = anchorOn.get(h); if (on === undefined) { on = h.getBoundingClientRect().width > 0; anchorOn.set(h, on); } if (on) return h; }
+    }
     if (mode === "park" && innerWidth >= 820) return "park";
     return null;
   }
@@ -273,7 +293,7 @@
     const dt = Math.min(dtMs / 1000, 1 / 20), now = performance.now() / 1000;
     const sec = activeSection();
     vel = lerp(vel, Math.abs(scrollY - velY) / Math.max(dt, .001), .35); velY = scrollY;
-    if (sec && !resizing) { const r = sec.getBoundingClientRect(); keep = { s: sec, rel: (innerHeight * .5 - r.top) / r.height }; }
+    if (sec && !resizing) { const b = boxes.get(sec); keep = { s: sec, rel: (scrollY + innerHeight * .5 - b.top) / b.h }; }
     const anchor = anchorOf(sec), bg = sec ? sec.dataset.bg : "paper";
     let t = anchor && docked !== anchor ? rectOf(anchor) : null;
     const fill = fillOf(sec);
@@ -297,7 +317,8 @@
       else if (sameSec && sec.dataset.move === "fade") tr = { kind: "in", t0: now, dur: .22 };  // big blocks: it passes to the next title
       else if (sameSec && prevOn && fill >= mFill - .08) {
         // rows: it walks to the next one; scrolling fast it simply lands there, it never trails behind
-        if (vel > 150 || (tr && tr.kind === "fly")) tr = null;
+        if (touch) tr = { kind: "in", t0: now, dur: .22 };
+        else if (vel > 150 || (tr && tr.kind === "fly")) tr = null;
         else { undock(); tr = { kind: "fly", t0: now, from: { x: M.x, y: M.y, w: M.w }, o0: M.o }; }
       }
       else tr = { kind: prevOn ? "swap" : "in", t0: now, o0: M.o, prev, dur: .28 };           // another section: fade, then appear there
@@ -348,6 +369,24 @@
     if (eyes !== mEyes) { mEyes = eyes; mf.eyesOn(eyes); }
   });
 
+  /* ---------------- on a phone a scene chases the scroll for a moment instead of copying it ---------------- */
+  // Native inertia delivers the position in uneven steps: without this a fade jumps from one value to another.
+  const soft = fn => {
+    if (!touch || reduce) return fn;
+    let cur = null, target = 0, running = false;
+    const step = (t, dt) => {
+      cur += (target - cur) * (1 - Math.exp(-dt / 90));
+      if (Math.abs(target - cur) < .0003) { cur = target; gsap.ticker.remove(step); running = false; }
+      fn({ progress: cur });
+    };
+    return s => {
+      target = s.progress;
+      if (cur === null) { cur = target; fn({ progress: cur }); return; }
+      if (!running) { running = true; gsap.ticker.add(step); }
+    };
+  };
+  const softScrub = touch && !reduce ? .22 : true;
+
   /* ---------------- scenes ---------------- */
   function buildScenes() {
     const mm = gsap.matchMedia();
@@ -355,7 +394,7 @@
     /* HOME HERO: into the black of the arc */
     if ($("#hero")) {
       gsap.timeline({
-        scrollTrigger: { trigger: "#hero", start: "top top", end: "bottom bottom", scrub: true, onUpdate: s => { G.dive = s.progress; } }
+        scrollTrigger: { trigger: "#hero", start: "top top", end: "bottom bottom", scrub: softScrub, onUpdate: soft(s => { G.dive = s.progress; }) }
       })
         .to(".hero__copy", { y: -60, autoAlpha: 0, ease: "power2.in", duration: .3 }, 0)
         .to(".hero__title .ln > span", { yPercent: -40, autoAlpha: 0, stagger: .04, ease: "power2.in", duration: .3 }, .02)
@@ -367,7 +406,7 @@
 
     /* PAGE HERO: the title leaves, the logo shrinks towards the next section */
     if ($(".phero")) {
-      gsap.timeline({ scrollTrigger: { trigger: ".phero", start: "top top", end: "bottom top", scrub: true } })
+      gsap.timeline({ scrollTrigger: { trigger: ".phero", start: "top top", end: "bottom top", scrub: softScrub } })
         .to(".phero__title .ln > span", { yPercent: -30, autoAlpha: 0, ease: "power2.in", duration: .5 }, .1)
         .to(".phero__sub, .phero__index", { y: -40, autoAlpha: 0, ease: "power2.in", duration: .4 }, 0)
         .to(".phero__face", { scale: .5, yPercent: -30, ease: "power1.in", duration: 1 }, 0);
@@ -379,7 +418,7 @@
 
     /* HOME SERVIZI: the row in the middle of the screen lights up, the pointer can take over */
     walkRows($$(".srv__row"));
-    $$(".srv__word span").forEach(s => gsap.from(s, { yPercent: 105, duration: 1.1, ease: "expo.out", scrollTrigger: { trigger: s, start: "top 92%" } }));
+    $$(".srv__word span").forEach(s => gsap.from(s, { yPercent: 105, duration: 1.1, ease: "expo.out", scrollTrigger: { trigger: s, start: mobile() ? "top 100%" : "top 92%" } }));
 
     /* words out of the blur, tied to the scroll */
     $$(".blur").forEach(p => {
@@ -391,29 +430,52 @@
       });
     });
 
-    /* HOME METODO: desktop slides with the scroll; on a phone it is a row you swipe */
+    /* HOME METODO: on a computer the row glides with the scroll and each word dissolves into the next;
+       on a phone it is a row you swipe, with the same dissolve */
     const track = $("#metodoTrack");
     if (track) {
-      const nav = $(".metodo__nav");
+      const nav = $(".metodo__nav"), steps = [...track.children];
+      const words = steps.map(s => $(".step__word", s)), texts = steps.map(s => $(".step__text", s));
+      const last = steps.length - 1;
+      // never fully stops and never jumps: it slows down on each word and speeds up between two words
+      const glide = q => { const raw = q * last, t = raw - Math.floor(raw); return Math.floor(raw) + t - .72 * Math.sin(2 * Math.PI * t) / (2 * Math.PI); };
       mm.add("(min-width: 821px)", () => {
+        let stepW = 0;
+        steps.forEach(el => { el.style.opacity = ""; el._op = null; });   // left by the phone row after a resize
+        const measure = () => { stepW = steps.length > 1 ? steps[1].offsetLeft - steps[0].offsetLeft : 0; };
+        const apply = s => {
+          const q = clamp((s.progress - .03) / .94, 0, 1), idx = q >= 1 ? last : glide(q);
+          track.style.transform = `translate3d(${(-stepW * idx).toFixed(2)}px,0,0)`;
+          steps.forEach((el, i) => {
+            const d = i - idx, far = Math.abs(d);
+            if (far > 1.2 && el._far) return;   // already out of sight
+            el._far = far > 1.2;
+            words[i].style.opacity = (1 - (d < 0 ? smooth(.1, .5, far) : smooth(.2, .68, far))).toFixed(3);
+            texts[i].style.opacity = (1 - (d < 0 ? smooth(.05, .32, far) : smooth(.28, .66, far))).toFixed(3);
+            texts[i].style.transform = `translate3d(${(d * 90).toFixed(2)}px,0,0)`;   // the sentence follows its word a little late
+          });
+          gsap.set("#metodoBar", { scaleX: q });
+          G.arc = .16 + .84 * smooth(.04, .9, s.progress);
+        };
         const st = ScrollTrigger.create({
           trigger: "#metodo", start: "top top", end: "bottom bottom", scrub: true, invalidateOnRefresh: true,
-          onUpdate: s => {
-            const p = smooth(.04, .86, s.progress);
-            const steps = track.children, stepW = steps.length > 1 ? steps[1].offsetLeft - steps[0].offsetLeft : 0;
-            const raw = p * (steps.length - 1), base = Math.floor(raw);
-            const idx = Math.min(steps.length - 1, base + smooth(.25, .75, raw - base));   // each step rests in the same place
-            gsap.set(track, { x: -stepW * idx });
-            gsap.set("#metodoBar", { scaleX: p });
-            G.arc = .16 + .84 * smooth(.04, .9, s.progress);
-          }
+          onRefresh: s => { measure(); apply(s); },
+          onUpdate: apply
         });
-        return () => { st.kill(); gsap.set(track, { clearProps: "transform" }); };
+        measure(); apply(st);
+        return () => {
+          st.kill(); track.style.transform = "";
+          steps.forEach((el, i) => { el._far = false; words[i].style.opacity = ""; texts[i].style.opacity = ""; texts[i].style.transform = ""; });
+        };
       });
-      swipeRow(nav, p => {
+      swipeRow(nav, (p, pos) => {
         if (!mobile()) return;
         G.arc = .16 + .84 * p;
         gsap.set("#metodoBar", { scaleX: .08 + .92 * p });
+        steps.forEach((el, i) => {
+          const d = i - pos, far = Math.abs(d), op = (1 - (d < 0 ? smooth(.08, .52, far) : smooth(.18, .82, far))).toFixed(3);
+          if (el._op !== op) { el._op = op; el.style.opacity = op; }
+        });
       });
     }
 
@@ -465,21 +527,21 @@
       const n = stps.length, bar = $("#stepsBar");
       ScrollTrigger.create({
         trigger: ".steps", start: "top top", end: "bottom bottom", scrub: true,
-        onUpdate: s => {
+        onUpdate: soft(s => {
           const p = s.progress * n;
           stps.forEach((c, i) => {
             const local = p - i;
-            const op = (i === 0 ? 1 : smooth(-.02, .16, local)) * (i === n - 1 ? 1 : 1 - smooth(.84, 1.0, local));
+            const op = (i === 0 ? 1 : smooth(0, .17, local)) * (i === n - 1 ? 1 : 1 - smooth(.83, .995, local));
             if (c._op === op) return;
             c._op = op;
             c.style.opacity = op.toFixed(3);
             c.style.visibility = op > .01 ? "visible" : "hidden";
-            if (!light) c.style.filter = `blur(${((1 - op) * 8).toFixed(2)}px)`;
+            if (!light) c.style.filter = op > .995 ? "none" : `blur(${((1 - op) * 8).toFixed(2)}px)`;
             c.style.transform = `translateY(${((1 - op) * (local < .5 ? 40 : -40)).toFixed(1)}px)`;
           });
           gsap.set(bar, { scaleX: s.progress });
           G.steps = .1 + .9 * smooth(0, .9, s.progress);
-        }
+        })
       });
     }
 
@@ -525,17 +587,17 @@
     const num = $("#aNum"), bar = $("#aBar");
     ScrollTrigger.create({
       trigger: "#nome", start: "top top", end: "bottom bottom", scrub: true,
-      onUpdate: s => {
+      onUpdate: soft(s => {
         const p = s.progress * n;
         chs.forEach((c, i) => {
           const local = p - i;                       // 0..1 while this chapter is on screen
-          const op = (i === 0 ? 1 : smooth(-.05, .08, local)) * (i === n - 1 ? 1 : 1 - smooth(.92, 1.05, local));
+          const op = (i === 0 ? 1 : smooth(0, .15, local)) * (i === n - 1 ? 1 : 1 - smooth(.85, .995, local));
           if (c._op === op) return;
           c._op = op;
           c.style.opacity = op.toFixed(3);
           c.style.visibility = op > .01 ? "visible" : "hidden";
-          if (!light) c.style.filter = `blur(${((1 - op) * 8).toFixed(2)}px)`;
-          c.style.transform = `translateY(calc(${mobile() ? "0px" : "-50%"} + ${((1 - op) * (local < .5 ? 30 : -30)).toFixed(1)}px))`;
+          if (!light) c.style.filter = op > .995 ? "none" : `blur(${((1 - op) * 8).toFixed(2)}px)`;
+          c.style.transform = `translateY(calc(${mobile() ? "0px" : "-50%"} + ${((1 - op) * (local < .5 ? 30 : mobile() ? -8 : -30)).toFixed(1)}px))`;
         });
         const k = clamp(Math.floor(p), 0, n - 1);
         num.textContent = k + 1;
@@ -549,7 +611,7 @@
         quote.classList.toggle("is-void", e >= .62);
         other.classList.toggle("on", e >= .62);
         G.nome = .15 + .85 * smooth(0, .93, s.progress);
-      }
+      })
     });
   }
 
@@ -593,14 +655,17 @@
   /* header: hides while reading downward */
   // once you leave the top it gets a solid ground in the colour of the section below it, so it never sits on a big title
   const hdr = $(".hdr"); let lastY = 0, hdrFree = 0;
+  let hdrH = hdr.offsetHeight;
+  addEventListener("resize", () => { hdrH = hdr.offsetHeight; });
   const hdrGround = () => {
     const solid = scrollY > 80 && !hdrOnMenu;
     hdr.classList.toggle("is-solid", solid);
-    const probe = hdr.offsetHeight / 2;
-    const sec = sections.find(s => { if (s.hidden) return false; const r = s.getBoundingClientRect(); return r.top <= probe && r.bottom > probe; });
+    const probe = scrollY + hdrH / 2;
+    let sec = null;
+    for (const [s, b] of boxes) if (b.top <= probe && b.top + b.h > probe) { sec = s; break; }
     let bg = sec ? sec.dataset.bg : "paper";
     if (sec && sec.id === "hero" && G.dive > .45) bg = "ink";
-    hdr.dataset.ground = bg;
+    if (hdr.dataset.ground !== bg) hdr.dataset.ground = bg;
   };
   addEventListener("scroll", () => {
     const y = scrollY;
