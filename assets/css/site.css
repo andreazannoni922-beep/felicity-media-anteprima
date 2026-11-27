@@ -713,3 +713,9 @@ html body #iubenda-cs-banner .iubenda-cs-customize-btn{background:transparent!im
   .snav__hint{color:var(--paper-60);transition:opacity .4s var(--ease)}
   .snav__hint.is-off{opacity:0}
 }
+
+/* Banner cookie iubenda: in basso, bianco e nero come il sito */
+html body #iubenda-cs-banner#iubenda-cs-banner.iubenda-cs-top { top: auto !important; bottom: 0 !important; align-items: flex-end !important; }
+html body #iubenda-cs-banner#iubenda-cs-banner .iubenda-cs-container .iubenda-cs-content { background: #0b0b0b !important; color: #f2f1ed !important; font-family: inherit !important; }
+html body #iubenda-cs-banner#iubenda-cs-banner .iubenda-cs-opt-group .iubenda-cs-accept-btn.iubenda-cs-btn-primary { background: #f2f1ed !important; color: #0b0b0b !important; border-color: #f2f1ed !important; }
+html body #iubenda-cs-banner#iubenda-cs-banner .iubenda-cs-opt-group .iubenda-cs-reject-btn.iubenda-cs-btn-primary { background: transparent !important; color: #f2f1ed !important; border: 1px solid #f2f1ed !important; }
