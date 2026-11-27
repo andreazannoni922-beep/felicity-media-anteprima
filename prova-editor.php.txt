@@ -108,9 +108,14 @@ $n = count( get_option( FM_HIST ) );
 list( $st ) = rq( 'ripristina', array( 'i' => $n - 1 ) );
 t( fm_saved() === array( 't' => array(), 'l' => array(), 'seo' => array() ) || ( empty( fm_saved()['t'] ) && empty( fm_saved()['team'] ) ), 'torna alla prima versione: sito come l’originale' );
 
-// the page an editor receives carries the editor, a visitor's does not
+// every page carries only the small loader; the editor comes from admin-ajax for whoever can manage the site
 page( 'index' );
-ob_start(); do_action( 'wp_enqueue_scripts' ); wp_print_styles(); do_action( 'wp_footer' ); $foot = ob_get_clean();
-t( false !== strpos( $foot, 'window.FM_EDIT=' ) && preg_match( '#assets/editor/fe-[0-9a-f]{10}\.js#', $foot ), 'l’editor viene caricato per l’amministratore' );
-
+ob_start(); do_action( 'wp_footer' ); $foot = ob_get_clean();
+t( false !== strpos( $foot, 'fm_editor' ) && false === strpos( $foot, 'FM_EDIT=' . '{' ) && false === strpos( $foot, 'wp_rest' ), 'la pagina porta solo il piccolo caricatore, nessuna chiave' );
+t( (bool) has_action( 'wp_ajax_fm_editor' ) && ! has_action( 'wp_ajax_nopriv_fm_editor' ), 'l’editor si chiede a WordPress solo da loggati' );
+$cfg = fm_editor_config( 'index' );
+t( count( $cfg['t'] ) > 50 && strlen( $cfg['nonce'] ) === 10 && ! empty( $cfg['media'] ), 'configurazione dell’editor: ' . count( $cfg['t'] ) . ' testi, chiave valida' );
+wp_set_current_user( 0 );
+t( ! fm_can_edit(), 'da non loggati la richiesta dell’editor viene respinta' );
+wp_set_current_user( 1 );
 file_put_contents( '/wordpress/prova-editor.txt', implode( "\n", $out ) . "\n\n" . ( preg_grep( '/^FAIL/', $out ) ? 'CI SONO ERRORI' : 'TUTTO OK' ) . "\n" );
