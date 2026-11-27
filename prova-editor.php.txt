@@ -78,7 +78,7 @@ $hi = page( 'index' );
 $hc = page( 'chi-siamo' );
 t( false !== strpos( $hi, 'data-fe-team="7:nome">Mario Rossi</span>' ) && false !== strpos( $hc, 'data-fe-team="7:nome">Mario Rossi</span>' ), 'team: compare in home e in Chi siamo' );
 t( false !== strpos( $hc, '"name":"Mario Rossi","jobTitle":"Copywriter"' ), 'team: compare nei dati per Google' );
-t( 1 === substr_count( $hc, 'class="crew__row is-active"' ) && false !== strpos( $hc, '<li class="crew__row is-active" data-fe-row="0">' ), 'Chi siamo: la prima persona resta attiva' );
+t( 1 === substr_count( $hc, 'class="crew__row is-active"' ) && false !== strpos( $hc, '<li class="crew__row is-active" data-fe-row="0">' ), 'Chi siamo: la prima persona resta attiva · conteggio ' . substr_count( $hc, 'class="crew__row is-active"' ) . ' · riga ' . ( false !== strpos( $hc, '<li class="crew__row is-active" data-fe-row="0">' ) ? 'sì' : 'no' ) . ' · ' . esc_html( substr( $hc, strpos( $hc, 'data-fe-teamlist' ) - 40, 260 ) ) );
 
 // titles for Google
 list( $st, $r ) = rq( 'modifica', array( 'tipo' => 'seo', 'chiave' => 'servizi', 'valore' => array( 'title' => 'Servizi "speciali" & altro', 'desc' => "Riga uno\nriga due" ) ) );
