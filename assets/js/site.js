@@ -548,7 +548,7 @@
     /* CHI SIAMO: the team, the logo walks down the names; the years count up */
     walkRows($$(".crew__row"));
     $$("[data-count]").forEach(el => {
-      const to = +el.dataset.count, from = 0, o = { v: from };
+      const to = parseInt(el.textContent, 10) || +el.dataset.count, from = 0, o = { v: from };   // the text wins: Alessio can change it from the editor
       el.textContent = from;
       gsap.to(o, { v: to, duration: 1.6, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 88%" }, onUpdate: () => { el.textContent = Math.round(o.v); } });
     });
